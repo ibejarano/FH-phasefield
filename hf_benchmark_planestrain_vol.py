@@ -9,25 +9,38 @@ set_log_active(False)
 #set_log_level(LogLevel.INFO)
 
 # Props Material y flujo
-E = 210e3
+E = 2.1e9
 nu = 0.3
 Gc = 2.7 # Energía por unidad de superficie de fractura
 Q0 = 1e-6
 
+# Tanne parametros
+E = 1
+nu = 0
+Gc = 1
+
 # Mallado
-h_elem = 1e-3 # TODO: Cambiar con el tamaño de la malla en zona de fractura
+h_elem = 0.005 # TODO: Cambiar con el tamaño de la malla en zona de fractura
+aspect_hl = 3 # aspect_hl = e = l/h
+l = aspect_hl*h_elem # Longitud de transición
+
+# Condiciones Iniciales
+l0 = 0.114
+w0 = h_elem
 
 # Control de simulacion
 TOL_PHI = 1e-3 # Tolerancia de phi
-TOL_U = 1e-6 # Tolerancia desplazamientos
+TOL_U = 1e-3 # Tolerancia desplazamientos
 MAXITE = 5
-MAX_STEPS = 2000
-p_init = 1000
+T_FINAL = 500000
+TOL_VOL = 0.01 # 1% de tolerancia de volumen inyectado
+DT = 200
+p_init = 1
 
 ## MESHING ##
 assert len(argv) == 2 , "Case name not found"
 
-meshName = "meshes/benchmark_planestrain"
+meshName = "meshes/benchmark_tanne_11h"
 mesh = Mesh(meshName+ ".xml")
 subdomains = MeshFunction('size_t',mesh,meshName+"_physical_region.xml")
 boundary_markers = MeshFunction('size_t',mesh, meshName+"_facet_region.xml")
@@ -41,8 +54,6 @@ WW = FunctionSpace(mesh, 'DG', 0)
 p, q = TrialFunction(V), TestFunction(V)
 u, v = TrialFunction(W), TestFunction(W)
 
-aspect_hl = 4 # Rel aspecto long. transicion vs altura minima de elemento
-l = aspect_hl*h_elem # Longitud de transición
 
 # Parametros de Lame (material isotropo)
 lmbda = E*nu / ((1+nu)  * (1-2*nu))
@@ -74,14 +85,14 @@ class CrackDomainAngle(SubDomain):
 class CrackDomain(SubDomain):
 	def inside(self, x, on_boundary):
 		center = [0, 0.0]
-		return abs(x[0] - center[0]) <= 0.015 and abs(x[1] - center[1]) <= h_elem/2
+		return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
 
 
-bcright = DirichletBC(W.sub(0), 0.0, boundary_markers, 10)
-bcleft  = DirichletBC(W.sub(0), 0.0, boundary_markers, 30)
-bcup = DirichletBC(W.sub(1), 0.0, boundary_markers, 40)
-bcbottom  = DirichletBC(W.sub(1), 0.0, boundary_markers, 20)
-bc_u = [bcleft, bcright, bcup, bcbottom]
+bcright = DirichletBC(W, (0.0, 0.0), boundary_markers, 10)
+bcleft  = DirichletBC(W, (0.0, 0.0), boundary_markers, 30)
+#bcup = DirichletBC(W.sub(1), 0.0, boundary_markers, 40)
+#bcbottom  = DirichletBC(W.sub(1), 0.0, boundary_markers, 20)
+bc_u = [bcleft, bcright]#, bcup, bcbottom]
 
 # Condicion de borde de la fractura, se marca la entalla inicial con el valor de 1
 crack = CrackDomain()
@@ -132,11 +143,10 @@ os.mkdir(caseDir)
 out_xml, u_ts, phi_ts = createSave(mesh, caseDir, "xml")
 fname = open(f"./{caseDir}/output.csv", 'w')
 
-TOL_VOL = 0.05 # 0.5% de tolerancia de volumen inyectado
-DT = 0.5
+
 t = 0
 pn = p_init
-pressure.assign(p_init)
+pressure.assign(pn)
 
 
 outfile = open(f"./{caseDir}/simulation_output.txt", 'w')
@@ -148,53 +158,40 @@ outfile.write("Flow rate: " + str(Q0) + "\n")
 outfile.write("Gc: " + str(Gc) + "\n")
 outfile.write("helem: " + str(h_elem) + "\n")
 outfile.write(" -- Parametros y tolerancias -- \n")
-outfile.write("delta T: " + str(DT) + "\n")
+outfile.write("delta T inicial: " + str(DT) + "\n")
 outfile.write("Tol volumen: " + str(TOL_VOL) + "\n")
 outfile.write("Tol phi: " + str(TOL_PHI) + "\n")
 outfile.write("Tol despl: " + str(TOL_U) + "\n")
-outfile.write("Max steps: " + str(MAX_STEPS) + "\n")
+outfile.write("Tiempo final: " + str(T_FINAL) + "\n")
 outfile.write("Pr inicial: " + str(p_init) + "\n")
 outfile.close()
 
-for step in range(MAX_STEPS):
+
+step = 0
+while t <= T_FINAL:
+	step += 1
 	print(f"Step: {step}")
 	ite = 0
-	err_abs = list()
-	err_rel = list()
-	p_list = list()
 	V0 = assemble( inner(grad(phit), -ut) * dx )
 	errDV = 1
-	DV0 = DT * Q0 # Delta de volumen inyectado a dt constante
+	errDV1 = None
+	errDV2 = None
+	DV0 = DT * Q0 
 	while abs(errDV)/DV0 > TOL_VOL:
 		ite += 1
-		if ite % 50 == 0:
-			DT /= 2
 		DV0 = DT * Q0 
 		try:
 			pn = pn1 - errDV1 * (pn1 - pn2)/(errDV1 - errDV2)
 		except:
-			pn *= 1.01
+			pn *= 1.001
 
 		pressure.assign(pn)
 		err_phi = 1
 		err_u = 1
-
-		#while err_phi > TOL_PHI or err_u > TOL_U:
 		solver_disp.solve()
 		solver_phi.solve()
-			# err_u = errornorm(unew, uold, norm_type='l2', mesh=None)
-			# err_phi = errornorm(pnew, pold, norm_type='l2', mesh=None)
-			# uold.assign(unew)
-			# pold.assign(pnew)
-			# Hold.assign(project(psi(unew), WW))
-
 		VK = assemble( inner(grad(pnew), -unew) * dx )
 		errDV = DV0 - (VK - V0) # Delta Vol - ( Delta vol )
-
-		err_abs.append(errDV)
-		err_rel.append(abs(errDV) / DV0)
-		p_list.append(pn)
-
 		uold.assign(unew)
 		pold.assign(pnew)
 		Hold.assign(project(psi(unew), WW))
@@ -207,19 +204,25 @@ for step in range(MAX_STEPS):
 		except:
 			pn1 = pn
 			errDV1 = errDV
+
 		
 	ut.assign(unew)
 	phit.assign(pnew)
 
 	vol_frac = assemble( inner(grad(phit), -ut) * dx )
+	A = np.array([-0.2, 0.0])
+	B = np.array([0.2, 0.0])
+	l_frac = line_integral(phit, A, B, 1000)
+
 	t += DT
 	fname.write(str(t) + ",")
 	fname.write(str(pn) + ",")
-	fname.write(str(vol_frac) + "\n")
+	fname.write(str(vol_frac) + ",")
+	fname.write(str(l_frac) + "\n")
 
-	print(f"Converge t: {t:.4f} dt: {DT:.2e}")
+	print(f"Converge t: {t:.4f} dt: {DT:.2e} --- Iteraciones: {ite}")
 	# Save files
-	if step % 2 == 0:
+	if step % 20 == 0:
 		out_xml.write(ut, t)
 		out_xml.write(phit, t)
 		print("Saving VTK")
