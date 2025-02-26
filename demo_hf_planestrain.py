@@ -1,8 +1,9 @@
 from dolfin import *
 import numpy as np
+import json
 from sys import argv
 import os
-from utils import createSave, line_integral, CrackDomain
+from utils import createSave, line_integral
 from tqdm import tqdm
 # Quitar mensajes de compilacion
 set_log_active(False)
@@ -29,6 +30,7 @@ T_FINAL = 800
 TOL_VOL = 0.001 # 0.1% de tolerancia de volumen inyectado
 DT = 0.001
 p_init = 100
+
 
 ## MESHING ##
 assert len(argv) == 3 , "Case name not found and mesh"
@@ -117,20 +119,7 @@ pressure.assign(pn)
 outfile = open(f"./{caseDir}/simulation_output.txt", 'w')
 outfile.write(" -- Algoritmo --- \n")
 outfile.write(" Algoritmo con control de volumen \n")
-outfile.write("Mod young E: " + str(E) + "\n")
-outfile.write("nu: " + str(nu) + "\n")
-outfile.write("Flow rate: " + str(Q0) + "\n")
-outfile.write("Gc: " + str(Gc) + "\n")
-outfile.write("helem: " + str(h_elem) + "\n")
-outfile.write(" -- Condiciones iniciales -- \n")
-outfile.write("Longitud inicial: " + str(l0) + "\n")
-outfile.write("Opening inicial: " + str(w0) + "\n")
-outfile.write(" -- Parametros y tolerancias -- \n")
-outfile.write("delta T: " + str(DT) + "\n")
-outfile.write("Tol volumen: " + str(TOL_VOL) + "\n")
-outfile.write("Tol phi: " + str(TOL_PHI) + "\n")
-outfile.write("Tiempo final: " + str(T_FINAL) + "\n")
-outfile.write("Pr inicial: " + str(p_init) + "\n")
+outfile.write(json.dumps(caseData))
 outfile.close()
 
 step = 0

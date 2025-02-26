@@ -257,6 +257,36 @@ class Gc_param(UserExpression):
             values[0] = self.Gc1
 
 
+class SimulationData:
+    def __init__(self, E=None, nu=None, Gc=None, Q0=None, h_elem=None, l_h=None):
+        self.E = E
+        self.nu = nu
+        self.Gc = Gc
+        self.Q0 = Q0
+        self.h_elem = h_elem
+        self.l_h = l_h
+
+    def set_tolerances(self, tol_vol=0.001, tol_phi=1e-3):
+        self.tol_vol = tol_vol
+        self.tol_phi = tol_phi
+    
+    def set_simulation_parameters(self, dt=None, t_final=None):
+        self.dt = dt
+        self.t_final = t_final
+
+    def set_initial_conditions(self, pinit=None, l0=None, w0=None):
+        self.pinit = pinit
+        self.l0 = l0
+        self.w0 = w0
+
 if __name__ == "__main__":
-    save_stress("results/curving_H_20", step=2)
+    #save_stress("results/curving_H_20", step=2)
+    import json
+
+    with open("results/test/simulation_output.txt", "r") as f:
+        for l in f:
+            if l[0] == "{":
+                a = json.loads(l)
+                print(a)
+                print(a["Eyoung"])
     print("Finished")

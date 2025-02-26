@@ -1,8 +1,9 @@
 from dolfin import *
 import numpy as np
+import json
 from sys import argv
 import os
-from utils import createSave
+from utils import createSave, SimulationData
 from tqdm import tqdm
 #import matplotlib.pyplot as plt
 # Quitar mensajes de compilacion
@@ -20,16 +21,16 @@ h_elem = 2e-3 # TODO: Cambiar con el tamaño de la malla en zona de fractura
 aspect_hl = 3 # aspect_hl = e = l/h
 l = aspect_hl*h_elem # Longitud de transición
 
+simData = SimulationData(E=E, nu=nu, Gc=Gc, Q0=Q0, h_elem=h_elem, l_h=aspect_hl)
 # Condiciones Iniciales
 l0 = 0.05/2
 w0 = h_elem
-
+p_init = 10
+simData.set_initial_conditions(pinit=p_init, l0=l0, w0=w0)
 # Control de simulacion
 DT = 0.01
-TOL_PHI = 1e-3 # Tolerancia de phi
-TOL_VOL = 0.001 # 0.1% de tolerancia de volumen inyectado
 T_FINAL = 0.63
-p_init = 10
+simData.set_simulation_parameters(dt=DT, t_final=T_FINAL)
 
 # directorios
 assert len(argv) == 3 , "Case name not found and mesh"
@@ -48,7 +49,6 @@ W = VectorFunctionSpace(mesh, 'CG', 1)
 WW = FunctionSpace(mesh, 'DG', 0)
 p, q = TrialFunction(V), TestFunction(V)
 u, v = TrialFunction(W), TestFunction(W)
-
 
 # Parametros de Lame (material isotropo)
 lmbda = E*nu / ((1+nu)  * (1-2*nu))
@@ -121,22 +121,11 @@ pressure.assign(pn)
 outfile = open(f"./{caseDir}/simulation_output.txt", 'w')
 outfile.write(" -- Algoritmo --- \n")
 outfile.write(" Algoritmo con control de volumen \n")
-outfile.write("Mod young E: " + str(E) + "\n")
-outfile.write("nu: " + str(nu) + "\n")
-outfile.write("Flow rate: " + str(Q0) + "\n")
-outfile.write("Gc: " + str(Gc) + "\n")
-outfile.write("helem: " + str(h_elem) + "\n")
-outfile.write(" -- Condiciones iniciales -- \n")
-outfile.write("Longitud inicial: " + str(l0) + "\n")
-outfile.write("Opening inicial: " + str(w0) + "\n")
-outfile.write(" -- Parametros y tolerancias -- \n")
-outfile.write("delta T: " + str(DT) + "\n")
-outfile.write("Tol volumen: " + str(TOL_VOL) + "\n")
-outfile.write("Tol phi: " + str(TOL_PHI) + "\n")
-outfile.write("Tiempo final: " + str(T_FINAL) + "\n")
-outfile.write("Pr inicial: " + str(p_init) + "\n")
+outfile.write(json.dumps(caseData))
 outfile.close()
 
+
+exit()
 step = 0
 solver_phi.solve()
 pold.assign(pnew)
