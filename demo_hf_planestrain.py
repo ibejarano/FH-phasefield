@@ -2,7 +2,7 @@ from dolfin import *
 import numpy as np
 from sys import argv
 import os
-from utils import createSave, line_integral
+from utils import createSave, line_integral, CrackDomain
 from tqdm import tqdm
 # Quitar mensajes de compilacion
 set_log_active(False)
@@ -25,17 +25,16 @@ w0 = h_elem
 
 # Control de simulacion
 TOL_PHI = 1e-3 # Tolerancia de phi
-TOL_U = 1e-3 # Tolerancia desplazamientos
-MAXITE = 5
 T_FINAL = 800
 TOL_VOL = 0.001 # 0.1% de tolerancia de volumen inyectado
 DT = 0.001
 p_init = 100
 
 ## MESHING ##
-assert len(argv) == 2 , "Case name not found"
-
-meshName = "meshes/benchmark_tanne_11h"
+assert len(argv) == 3 , "Case name not found and mesh"
+caseDir = os.path.join("./results", argv[1])
+meshName = caseDir+"/"+argv[2]
+## MESHING ##
 mesh = Mesh(meshName+ ".xml")
 subdomains = MeshFunction('size_t',mesh,meshName+"_physical_region.xml")
 boundary_markers = MeshFunction('size_t',mesh, meshName+"_facet_region.xml")
@@ -68,29 +67,16 @@ def psi(u):
 def H(uold, unew, Hold):
   return conditional(lt(psi(uold), psi(unew)), psi(unew), Hold)
 
-class CrackDomainAngle(SubDomain):
-	def inside(self, x, on_boundary):
-		angulo = 38
-		alpha = -angulo*(3.1415/180)
-		senalpha = np.sin(alpha)
-		cosalpha = np.cos(alpha)
-		xp = (x[0]*cosalpha - x[1]*senalpha, x[0]*senalpha + x[1]*cosalpha)
-		return abs(xp[0]) <= 0.5 and abs(xp[1]) <= 0.015
-
-class CrackDomain(SubDomain):
-	def inside(self, x, on_boundary):
-		center = [0, 0.0]
-		return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
-
-
 bcright = DirichletBC(W, (0.0, 0.0), boundary_markers, 10)
 bcleft  = DirichletBC(W, (0.0, 0.0), boundary_markers, 30)
-#bcup = DirichletBC(W.sub(1), 0.0, boundary_markers, 40)
-#bcbottom  = DirichletBC(W.sub(1), 0.0, boundary_markers, 20)
 bc_u = [bcleft, bcright]
 
-# Condicion de borde de la fractura, se marca la entalla inicial con el valor de 1
+class CrackDomain(SubDomain):
+    def inside(self, x, on_boundary):
+        center = [0, 0.0]
+        return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
 crack = CrackDomain()
+
 bc_phi = [DirichletBC(V, Constant(1.0), crack)]
 
 unew, uold, ut = Function(W), Function(W), Function(W, name="displacement")
@@ -143,7 +129,6 @@ outfile.write(" -- Parametros y tolerancias -- \n")
 outfile.write("delta T: " + str(DT) + "\n")
 outfile.write("Tol volumen: " + str(TOL_VOL) + "\n")
 outfile.write("Tol phi: " + str(TOL_PHI) + "\n")
-outfile.write("Tol despl: " + str(TOL_U) + "\n")
 outfile.write("Tiempo final: " + str(T_FINAL) + "\n")
 outfile.write("Pr inicial: " + str(p_init) + "\n")
 outfile.close()

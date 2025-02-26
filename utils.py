@@ -207,11 +207,6 @@ class CrackDomainAngle(SubDomain):
 		xp = (x[0]*cosalpha - x[1]*senalpha, x[0]*senalpha + x[1]*cosalpha)
 		return abs(xp[0]) <= 0.5 and abs(xp[1]) <= 0.015
 
-class CrackDomain(SubDomain):
-	def inside(self, x, on_boundary):
-		center = [0, 0.0]
-		return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
-
 class lmbda_param(UserExpression):
     def __init__(self, subdomains, lambda1,lambda2, **kwargs):
         super().__init__(**kwargs)
