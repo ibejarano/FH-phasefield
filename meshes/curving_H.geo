@@ -1,10 +1,10 @@
 // Mesh.Algorithm = 6; 
 gridsize = 4e-1;
-ref_gridsize = 2e-3;
+ref_gridsize = 1e-3;
 L = 4;
-H_sup = 0.12;
+H_sup = 0.1;
 H_inf = 2;
-dx = 0.1;
+dx = 0.2;
 y_crack = -0.02;
 dy_crack = 0.075;
 ref_gridsize2 = 2e-3*(H_sup/0.025);

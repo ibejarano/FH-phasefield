@@ -1,7 +1,8 @@
 #!/bin/bash
 START_TIME=$SECONDS
-MESH="benchmark_planestrain"
-OUTDIR="results/$1"
+MESH="curving_H"
+NAME=$1
+OUTDIR="results/$NAME"
 
 if [ -d "$OUTDIR" ];
 then
@@ -23,7 +24,7 @@ cp "meshes/$MESH.geo" $OUTDIR
 echo "Iniciando simulacion: " `date` | tee $LOG_FILE
 gmsh -2 -format msh2 meshes/$MESH.geo -o $OUTDIR/$MESH.msh | tee -a $LOG_FILE
 dolfin-convert $OUTDIR/$MESH.msh $OUTDIR/$MESH.xml | tee -a $LOG_FILE
-python static_fracture.py $1 $MESH | tee -a $LOG_FILE
+python curving_fracture.py $NAME $MESH
 ELAPSED_TIME=$(($SECONDS/60 - $START_TIME/60))
 echo "Duracion: $ELAPSED_TIME mins"
 echo "Simulacion Terminada: " `date` | tee -a $LOG_FILE

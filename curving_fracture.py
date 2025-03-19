@@ -1,38 +1,37 @@
 from dolfin import *
-import numpy as np
+
 import json
 from sys import argv
 import os
-from utils import createSave, line_integral
-from tqdm import tqdm
+from utils import createSave, read_data
+
 # Quitar mensajes de compilacion
 set_log_active(False)
 #set_log_level(LogLevel.INFO)
-
+data = read_data("lab")
 # Props Material y flujo
-E = 2e8
-nu = 0.3
-Gc = 2.7 # Energía por unidad de superficie de fractura
-Q0 = 1e-3
+E = data["E"]
+nu = data["nu"]
+Gc = data["Gc"] # Energía por unidad de superficie de fractura
+Q0 = data["Qo"]
 
 # Mallado
-h_elem = 0.005 # TODO: Cambiar con el tamaño de la malla en zona de fractura
-aspect_hl = 3 # aspect_hl = e = l/h
+h_elem = data["h"] # TODO: Cambiar con el tamaño de la malla en zona de fractura
+aspect_hl = data["aspect_hl"] # aspect_hl = e = l/h
 l = aspect_hl*h_elem # Longitud de transición
 
 # Condiciones Iniciales
-l0 = 0.114
+l0 = data["linit"]
 w0 = h_elem
+p_init = 100
+
 
 # Control de simulacion
 TOL_PHI = 1e-3 # Tolerancia de phi
 T_FINAL = 800
 TOL_VOL = 0.001 # 0.1% de tolerancia de volumen inyectado
 DT = 0.001
-p_init = 100
 
-
-## MESHING ##
 assert len(argv) == 3 , "Case name not found and mesh"
 caseDir = os.path.join("./results", argv[1])
 meshName = caseDir+"/"+argv[2]
@@ -49,7 +48,6 @@ W = VectorFunctionSpace(mesh, 'CG', 1)
 WW = FunctionSpace(mesh, 'DG', 0)
 p, q = TrialFunction(V), TestFunction(V)
 u, v = TrialFunction(W), TestFunction(W)
-
 
 # Parametros de Lame (material isotropo)
 lmbda = E*nu / ((1+nu)  * (1-2*nu))
@@ -69,16 +67,20 @@ def psi(u):
 def H(uold, unew, Hold):
   return conditional(lt(psi(uold), psi(unew)), psi(unew), Hold)
 
+
 bcright = DirichletBC(W, (0.0, 0.0), boundary_markers, 10)
 bcleft  = DirichletBC(W, (0.0, 0.0), boundary_markers, 30)
+#bcup = DirichletBC(W.sub(1), 0.0, boundary_markers, 40)
+#bcbottom  = DirichletBC(W.sub(1), 0.0, boundary_markers, 20)
 bc_u = [bcleft, bcright]
 
+# Condicion de borde de la fractura, se marca la entalla inicial con el valor de 1
 class CrackDomain(SubDomain):
-    def inside(self, x, on_boundary):
-        center = [0, 0.0]
-        return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
+	def inside(self, x, on_boundary):
+		center = [0, 0.0]
+		return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
+	
 crack = CrackDomain()
-
 bc_phi = [DirichletBC(V, Constant(1.0), crack)]
 
 unew, uold, ut = Function(W), Function(W), Function(W, name="displacement")
@@ -115,11 +117,10 @@ t = 0
 pn = p_init
 pressure.assign(pn)
 
-
 outfile = open(f"./{caseDir}/simulation_output.txt", 'w')
 outfile.write(" -- Algoritmo --- \n")
 outfile.write(" Algoritmo con control de volumen \n")
-outfile.write(json.dumps(caseData))
+outfile.write(json.dumps(data))
 outfile.close()
 
 step = 0
@@ -165,22 +166,24 @@ while t <= T_FINAL:
 		err_phi = errornorm(pnew, pold, norm_type='l2', mesh=mesh)
 		pold.assign(pnew)
 		errDV = 1
+		if ite > 20:
+			print("Simulation finished by iterations")
+			break
+
+	if ite > 20:
+		print(" too much iterations ")
+		break
 
 	ut.assign(unew)
 	phit.assign(pnew)
 
 	vol_frac = assemble( inner(grad(phit), -ut) * dx )
-	A = np.array([-1.5, 0.0])
-	B = np.array([1.5, 0.0])
-	l_frac = line_integral(phit, A, B, 1000)
-
 	t += DT
 	fname.write(str(t) + ",")
 	fname.write(str(pn) + ",")
-	fname.write(str(vol_frac) + ",")
-	fname.write(str(l_frac) + "\n")
+	fname.write(str(vol_frac) + "\n")
 
-	print(f"Converge t: {t:.4f} dt: {DT:.2e} l_frac {l_frac:.2f} --- Iteraciones: {ite}")
+	print(f"Converge t: {t:.4f} dt: {DT:.2e} --- Iteraciones: {ite}")
 	# Save files
 	if step % 2 == 0:
 		out_xml.write(ut, t)
@@ -190,4 +193,3 @@ while t <= T_FINAL:
 	phi_ts.store(phit.vector(), t)
 
 fname.close()
-print("Simulation completed")
