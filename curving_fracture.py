@@ -14,7 +14,7 @@ E = data["E"]
 nu = data["nu"]
 Gc = data["Gc"] # Energía por unidad de superficie de fractura
 Q0 = data["Qo"]
-
+pxx = data["px"]
 # Mallado
 h_elem = data["h"] # TODO: Cambiar con el tamaño de la malla en zona de fractura
 aspect_hl = data["aspect_hl"] # aspect_hl = e = l/h
@@ -25,12 +25,11 @@ l0 = data["linit"]
 w0 = h_elem
 p_init = 100
 
-
 # Control de simulacion
 TOL_PHI = 1e-3 # Tolerancia de phi
-T_FINAL = 800
 TOL_VOL = 0.001 # 0.1% de tolerancia de volumen inyectado
-DT = 0.001
+DT = 0.0002
+T_FINAL = DT * 10000
 
 assert len(argv) == 3 , "Case name not found and mesh"
 caseDir = os.path.join("./results", argv[1])
@@ -68,11 +67,11 @@ def H(uold, unew, Hold):
   return conditional(lt(psi(uold), psi(unew)), psi(unew), Hold)
 
 
-bcright = DirichletBC(W, (0.0, 0.0), boundary_markers, 10)
-bcleft  = DirichletBC(W, (0.0, 0.0), boundary_markers, 30)
+#bcright = DirichletBC(W, (0.0, 0.0), boundary_markers, 10)
+#bcleft  = DirichletBC(W, (0.0, 0.0), boundary_markers, 30)
 #bcup = DirichletBC(W.sub(1), 0.0, boundary_markers, 40)
-#bcbottom  = DirichletBC(W.sub(1), 0.0, boundary_markers, 20)
-bc_u = [bcleft, bcright]
+bcbottom  = DirichletBC(W, (0.0, 0.0), boundary_markers, 20)
+bc_u = [bcbottom]
 
 # Condicion de borde de la fractura, se marca la entalla inicial con el valor de 1
 class CrackDomain(SubDomain):
@@ -88,8 +87,11 @@ pnew, pold, Hold, phit = Function(V), Function(V), Function(V), Function(V, name
 
 # Funcional del desplazamiento eq (13)
 pressure = Constant(p_init)
+ds = Measure("ds", subdomain_data=boundary_markers)
 
-E_du = (1-pold)**2*inner(epsilon(v), sigma(u))*dx + pressure * inner(v, grad(pold))*dx
+px_vec = Constant((pxx, 0.0))
+
+E_du = (1-pold)**2*inner(epsilon(v), sigma(u))*dx + pressure * inner(v, grad(pold))*dx + dot(px_vec, v)*ds(10) - dot(px_vec, v)*ds(30) 
 
 # Funcional de la variable phi eq(14)
 E_phi = (Gc*l*inner(grad(p), grad(q)) + ((Gc/l)+2.0 *H(uold, unew, Hold))*inner(p,q)-2.0*H(uold, unew,Hold)*q)*dx
