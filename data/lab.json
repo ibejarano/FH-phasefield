@@ -6,7 +6,7 @@
     "Qo": 1e-3,
     "linit": 0.015,
     "aspect_hl": 3,
-    "h": 1e-3,
+    "h": 4e-3,
     "px": 10000,
     "psi_model": "linear",
     "delta_H": 0.02

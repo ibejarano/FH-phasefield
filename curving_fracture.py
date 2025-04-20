@@ -5,6 +5,9 @@ import os
 from utils import createSave, read_data
 from mesh_setup import setup_mesh_and_spaces
 from material_model import epsilon, select_sigma, select_psi, H
+from variational_forms import define_variational_forms
+from solvers import setup_solvers
+from output_utils import create_output_files, write_output, store_time_series
 
 # Quitar mensajes de compilacion
 set_log_active(False)
@@ -53,9 +56,6 @@ psi = select_psi(psi_model)
 sigma = select_sigma("linear")  # o "hyperelastic"
 print(f"Usando modelo de energía: {psi_model}")
 
-#bcright = DirichletBC(W, (0.0, 0.0), boundary_markers, 10)
-#bcleft  = DirichletBC(W, (0.0, 0.0), boundary_markers, 30)
-#bcup = DirichletBC(W.sub(1), 0.0, boundary_markers, 40)
 bcbottom  = DirichletBC(W, (0.0, 0.0), boundary_markers, 20)
 bc_u = [bcbottom]
 
@@ -72,33 +72,14 @@ unew, uold, ut = Function(W), Function(W), Function(W, name="displacement")
 pnew, pold, Hold, phit = Function(V), Function(V), Function(V), Function(V, name="phi")
 
 # Funcional del desplazamiento eq (13)
-pressure = Constant(p_init)
-ds = Measure("ds", subdomain_data=boundary_markers)
+E_du, E_phi, pressure = define_variational_forms(W, V, epsilon, sigma, H, psi, pold, u, v, p, q, unew, Hold, data, boundary_markers)
 
-px_vec = Constant((pxx, 0.0))
-
-E_du = (1-pold)**2*inner(epsilon(v), sigma(u, mu, lmbda))*dx + pressure * inner(v, grad(pold))*dx + dot(px_vec, v)*ds(10) - dot(px_vec, v)*ds(30) 
-
-# Funcional de la variable phi eq(14)
-E_phi = (Gc*l*inner(grad(p), grad(q)) + ((Gc/l)+2.0 *H(unew, Hold, data, psi))*inner(p,q)-2.0*H(unew, Hold, data, psi)*q)*dx
-
-
-p_disp = LinearVariationalProblem(lhs(E_du), rhs(E_du), unew, bc_u)
-p_phi = LinearVariationalProblem(lhs(E_phi), rhs(E_phi), pnew, bc_phi)
-
-solver_disp = LinearVariationalSolver(p_disp)
-solver_phi = LinearVariationalSolver(p_phi)
-
-#solver_disp.parameters["linear_solver"] = "gmres"
-solver_phi.parameters["linear_solver"] = "gmres"
-
-#solver_disp.parameters["preconditioner"] = "jacobi"
-solver_phi.parameters["preconditioner"] = "ilu"
+solver_disp, solver_phi = setup_solvers(E_du, E_phi, unew, pnew, bc_u, bc_phi)
 
 solver_disp.solve()
 solver_phi.solve()
 
-out_xml, u_ts, phi_ts = createSave(mesh, caseDir, "xml")
+out_xml, u_ts, phi_ts = create_output_files(mesh, caseDir)
 fname = open(f"./{caseDir}/output.csv", 'w')
 
 t = 0
@@ -173,11 +154,7 @@ while t <= T_FINAL:
 
 	print(f"Converge t: {t:.4f} dt: {DT:.2e} --- Iteraciones: {ite}")
 	# Save files
-	if step % 2 == 0:
-		out_xml.write(ut, t)
-		out_xml.write(phit, t)
-		print("Saving VTK")
-	u_ts.store(ut.vector(), t)
-	phi_ts.store(phit.vector(), t)
+	write_output(out_xml, ut, phit, t, step)
+	store_time_series(u_ts, phi_ts, ut, phit, t)
 
 fname.close()
