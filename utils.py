@@ -194,6 +194,13 @@ def thethap(sigma_x, sigma_y, tau_xy):
 def read_data(fname):
     with open(f"data/{fname}.json", "r") as f:
         data = json.load(f)
+    
+    E = data["E"]
+    nu = data["nu"]
+    lmbda = E*nu / ((1+nu)  * (1-2*nu))
+    mu = E / (2*(1+nu))
+    data.update({"mu": mu})
+    data.update({"lmbda": lmbda})
     return data
 
 # ("stress_0"+"stress_4")/2 + sqrt((("stress_0"-"stress_4")/2)^2 + "stress_1"^2)

@@ -13,10 +13,14 @@ def sigma_hyperelastic(u, mu, lmbda):
 def sigma_linear(u, mu, lmbda):
     return 2.0 * mu * epsilon(u) + lmbda * tr(epsilon(u)) * Identity(len(u))
 
-def psi_linear(u, mu, lmbda):
+def psi_linear(u, data):
+    mu = data["mu"]
+    lmbda = data["lmbda"]
     return 0.5*(lmbda+mu)*(0.5*(tr(epsilon(u)) + abs(tr(epsilon(u)))))**2 + mu*inner(dev(epsilon(u)), dev(epsilon(u)))
 
-def psi_hyperelastic(u, mu, lmbda):
+def psi_hyperelastic(u, data):
+    mu = data["mu"]
+    lmbda = data["lmbda"]
     I = Identity(len(u))
     F = I + grad(u)
     C = F.T * F
@@ -41,8 +45,6 @@ def select_sigma(model="linear"):
         raise ValueError(f"Modelo sigma desconocido: {model}")
 
 def H(u, Hold, data, psi):
-    mu = data.get("mu")
-    lmbda = data.get("lmbda")
     delta_H = data.get("delta_H", 0.0)
-    psi_u = psi(u, mu, lmbda)
+    psi_u = psi(u, data)
     return conditional(gt(psi_u, Hold), psi_u, Hold + delta_H)

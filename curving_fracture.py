@@ -9,9 +9,7 @@ from variational_forms import define_variational_forms
 from solvers import setup_solvers
 from output_utils import create_output_files, write_output, store_time_series
 
-# Quitar mensajes de compilacion
-set_log_active(False)
-#set_log_level(LogLevel.INFO)
+set_log_level(50)
 data = read_data("lab")
 # Props Material y flujo
 E = data["E"]
@@ -47,10 +45,6 @@ p, q = TrialFunction(V), TestFunction(V)
 u, v = TrialFunction(W), TestFunction(W)
 
 # Parametros de Lame (material isotropo)
-lmbda = E*nu / ((1+nu)  * (1-2*nu))
-mu = E / (2*(1+nu))
-data.update({"mu": mu})
-data.update({"lmbda": lmbda})
 psi_model = data.get("psi_model", "linear")
 psi = select_psi(psi_model)
 sigma = select_sigma("linear")  # o "hyperelastic"
@@ -121,7 +115,7 @@ while t <= T_FINAL:
 			VK = assemble( inner(grad(pold), -unew) * dx )
 			errDV = DV0 - (VK - V0) # Delta Vol - ( Delta vol )
 			uold.assign(unew)
-			Hold.assign(project(psi(unew, mu, lmbda), WW))
+			Hold.assign(project(psi(unew, data), WW))
 			try:
 				pn2 = pn1
 				errDV2 = errDV1

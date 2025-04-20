@@ -1,6 +1,6 @@
 // Mesh.Algorithm = 6; 
 gridsize = 4e-1;
-ref_gridsize = 4e-3;
+ref_gridsize = 2e-3;
 L = 4;
 H_sup = 0.06;
 H_inf = 2;
