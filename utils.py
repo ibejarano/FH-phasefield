@@ -1,6 +1,7 @@
 from dolfin import *
 import numpy as np
 from tqdm import tqdm
+import json
 
 E = 2e7
 nu = 0.3
@@ -8,21 +9,6 @@ Gc = 2.7 # Energía por unidad de superficie de fractura
 Q0 = 1e-4
 lmbda = E*nu / ((1+nu)  * (1-2*nu))
 mu = E / (2*(1+nu))
-
-
-def epsilon(u):
-  return sym(grad(u))
-
-def sigma(u):
-  return 2.0*mu*epsilon(u)+lmbda*tr(epsilon(u))*Identity(len(u))
-
-# Densidad de energia elastica eq (12)
-def psi(u):
-  return 0.5*(lmbda+mu)*(0.5*(tr(epsilon(u)) + abs(tr(epsilon(u)))))**2 + mu*inner(dev(epsilon(u)), dev(epsilon(u)))
-
-# Parámetro de trayectoria eq (11)
-def H(uold, unew, Hold):
-  return conditional(lt(psi(uold), psi(unew)), psi(unew), Hold)
 
 def compute_opening_grad(uvec, phivec, grad_phivec, lelem, lfracmax, tol=0.01):
     #grad_phi.assign(project(grad(phit), WW))
@@ -204,13 +190,10 @@ def sigma22(sigma_x, sigma_y, tau_xy): # magnitude of second principal stress
 def thethap(sigma_x, sigma_y, tau_xy):
     return atan((2 * tau_xy) / (sigma_x - sigma_y))
 
-def read_data(fname):
-    with open(f"data/{fname}.dat", "r") as f:
-        out = f.readlines()
-        names = out[0].split()
-        values = [float(x) for x in out[1].split()]
 
-    data = dict(zip(names, values))
+def read_data(fname):
+    with open(f"data/{fname}.json", "r") as f:
+        data = json.load(f)
     return data
 
 # ("stress_0"+"stress_4")/2 + sqrt((("stress_0"-"stress_4")/2)^2 + "stress_1"^2)

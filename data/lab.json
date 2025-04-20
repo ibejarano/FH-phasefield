@@ -1,0 +1,13 @@
+{
+    "_comment": "Prueba con material blando",
+    "E": 2e8,
+    "nu": 0.3,
+    "Gc": 2.7,
+    "Qo": 1e-3,
+    "linit": 0.015,
+    "aspect_hl": 3,
+    "h": 1e-3,
+    "px": 10000,
+    "psi_model": "linear",
+    "delta_H": 0.02
+}

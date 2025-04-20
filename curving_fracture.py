@@ -1,9 +1,10 @@
 from dolfin import *
-
 import json
 from sys import argv
 import os
 from utils import createSave, read_data
+from mesh_setup import setup_mesh_and_spaces
+from material_model import epsilon, select_sigma, select_psi, H
 
 # Quitar mensajes de compilacion
 set_log_active(False)
@@ -35,37 +36,22 @@ assert len(argv) == 3 , "Case name not found and mesh"
 caseDir = os.path.join("./results", argv[1])
 meshName = caseDir+"/"+argv[2]
 ## MESHING ##
-mesh = Mesh(meshName+ ".xml")
-subdomains = MeshFunction('size_t',mesh,meshName+"_physical_region.xml")
-boundary_markers = MeshFunction('size_t',mesh, meshName+"_facet_region.xml")
-
+mesh, subdomains, boundary_markers, V, W, WW = setup_mesh_and_spaces(meshName)
+ 
 # 1 . MESH TIENE QUE SER DOMAIN
 # --- mesh esta importado, tiene que ser domain
-V = FunctionSpace(mesh, 'CG', 1)
-W = VectorFunctionSpace(mesh, 'CG', 1)
-
-WW = FunctionSpace(mesh, 'DG', 0)
 p, q = TrialFunction(V), TestFunction(V)
 u, v = TrialFunction(W), TestFunction(W)
 
 # Parametros de Lame (material isotropo)
 lmbda = E*nu / ((1+nu)  * (1-2*nu))
 mu = E / (2*(1+nu))
-
-def epsilon(u):
-  return sym(grad(u))
-
-def sigma(u):
-  return 2.0*mu*epsilon(u)+lmbda*tr(epsilon(u))*Identity(len(u))
-
-# Densidad de energia elastica eq (12)
-def psi(u):
-  return 0.5*(lmbda+mu)*(0.5*(tr(epsilon(u)) + abs(tr(epsilon(u)))))**2 + mu*inner(dev(epsilon(u)), dev(epsilon(u)))
-
-# Parámetro de trayectoria eq (11)
-def H(uold, unew, Hold):
-  return conditional(lt(psi(uold), psi(unew)), psi(unew), Hold)
-
+data.update({"mu": mu})
+data.update({"lmbda": lmbda})
+psi_model = data.get("psi_model", "linear")
+psi = select_psi(psi_model)
+sigma = select_sigma("linear")  # o "hyperelastic"
+print(f"Usando modelo de energía: {psi_model}")
 
 #bcright = DirichletBC(W, (0.0, 0.0), boundary_markers, 10)
 #bcleft  = DirichletBC(W, (0.0, 0.0), boundary_markers, 30)
@@ -91,10 +77,10 @@ ds = Measure("ds", subdomain_data=boundary_markers)
 
 px_vec = Constant((pxx, 0.0))
 
-E_du = (1-pold)**2*inner(epsilon(v), sigma(u))*dx + pressure * inner(v, grad(pold))*dx + dot(px_vec, v)*ds(10) - dot(px_vec, v)*ds(30) 
+E_du = (1-pold)**2*inner(epsilon(v), sigma(u, mu, lmbda))*dx + pressure * inner(v, grad(pold))*dx + dot(px_vec, v)*ds(10) - dot(px_vec, v)*ds(30) 
 
 # Funcional de la variable phi eq(14)
-E_phi = (Gc*l*inner(grad(p), grad(q)) + ((Gc/l)+2.0 *H(uold, unew, Hold))*inner(p,q)-2.0*H(uold, unew,Hold)*q)*dx
+E_phi = (Gc*l*inner(grad(p), grad(q)) + ((Gc/l)+2.0 *H(unew, Hold, data, psi))*inner(p,q)-2.0*H(unew, Hold, data, psi)*q)*dx
 
 
 p_disp = LinearVariationalProblem(lhs(E_du), rhs(E_du), unew, bc_u)
@@ -154,7 +140,7 @@ while t <= T_FINAL:
 			VK = assemble( inner(grad(pold), -unew) * dx )
 			errDV = DV0 - (VK - V0) # Delta Vol - ( Delta vol )
 			uold.assign(unew)
-			Hold.assign(project(psi(unew), WW))
+			Hold.assign(project(psi(unew, mu, lmbda), WW))
 			try:
 				pn2 = pn1
 				errDV2 = errDV1
