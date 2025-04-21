@@ -1,10 +1,15 @@
 from paraview.simple import *
 import sys
+import os
+import pandas as pd
+import json
 
 #### disable automatic camera reset on 'Show'
 paraview.simple._DisableFirstRenderCameraReset()
 
 caseDir = sys.argv[1]
+case_path = os.path.join("results", caseDir)
+output_dir = "./fracturepaths/"
 
 # create a new 'Xdmf3 Reader S'
 outputxdmf = Xdmf3ReaderS(registrationName='output.xdmf', FileName=[f"./results/{caseDir}/output.xdmf"])
@@ -105,3 +110,14 @@ spreadSheetView1.HiddenColumnLabels = ['Point ID', 'displacement', 'displacement
 ExportView(f"./fracturepaths/{caseDir}.csv", view=spreadSheetView1)
 
 
+# === 5. Exportar propiedades del material a un nuevo CSV ===
+props_path = os.path.join(case_path, "simulation_output.txt")
+with open(props_path, 'r') as f:
+    lines = f.readlines()[2:]
+    props = json.loads(''.join(lines))
+
+props_df = pd.DataFrame([props])
+props_csv_path = os.path.join(output_dir, f"propiedades_{caseDir}.csv")
+props_df.to_csv(props_csv_path, index=False)
+
+print(f"[{caseDir}] Propiedades exportadas: {props_csv_path}")
