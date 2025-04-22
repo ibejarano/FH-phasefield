@@ -9,5 +9,7 @@
     "h": 2e-3,
     "px": 10000,
     "psi_model": "linear",
-    "delta_H": 0.02
+    "delta_H": 0.02,
+    "dt": 1e-4,
+    "H": 10
 }

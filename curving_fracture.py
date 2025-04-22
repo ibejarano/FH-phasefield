@@ -26,7 +26,7 @@ def run_simulation(data, caseDir, meshName):
     # Control de simulacion
     TOL_PHI = 1e-3 # Tolerancia de phi
     TOL_VOL = 0.001 # 0.1% de tolerancia de volumen inyectado
-    DT = 0.0002
+    DT = data["dt"]
     T_FINAL = DT * 10000
 
     assert len(argv) == 3 , "Case name not found and mesh"

@@ -10,9 +10,9 @@ output_dir = "./fracturepaths"
 
 if len(sys.argv) < 2:
     print("Uso: python post_process_curves.py <nombre_propiedad>")
-    sys.exit(1)
+    #sys.exit(1)
 
-propiedad_clave = sys.argv[1]
+#propiedad_clave = sys.argv[1]
 
 # Directorio con los resultados
 
