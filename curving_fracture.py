@@ -159,7 +159,7 @@ def run_simulation(data, caseDir, meshName):
         vol_frac = assemble( inner(grad(phit), -ut) * dx )
         t += DT
         fname.write(str(t) + ",")
-        fname.write(str(pn) + ",")
+        fname.write(str(pnew) + ",")
         fname.write(str(vol_frac) + "\n")
 
         print(f"Converge t: {t:.4f} dt: {DT:.2e} --- Iteraciones: {ite}")
