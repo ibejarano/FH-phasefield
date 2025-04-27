@@ -1,13 +1,13 @@
 // Mesh.Algorithm = 6; 
 gridsize = 4e-1;
-ref_gridsize = 2e-3;
+ref_gridsize = 1e-3;
 L = 4;
-H_sup = 0.06;
+H_sup = 0.20;
 H_inf = 2;
-dx = 0.1;
-y_crack = -0.02;
+dx = 0.15;
+y_crack = -0.01;
 dy_crack = 0.04 - y_crack;
-ref_gridsize2 = ref_gridsize*(H_sup/0.025);
+ref_gridsize2 = ref_gridsize*(H_sup/0.005);
 //
 Point(1) = { -L/2 , H_sup   ,0.0, gridsize};
 Point(2) = { -L/2 , -H_inf  ,0.0, gridsize};
