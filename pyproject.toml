@@ -1,0 +1,22 @@
+# pyproject.toml
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fh_phasefield_simulator" # Choose a suitable name
+version = "0.1.0"
+description = "Phase-field simulation for fracture mechanics."
+readme = "README.md"
+requires-python = ">=3.8" # Specify your minimum Python version
+# Add dependencies from your requirements.txt here if desired,
+# or keep them separate in requirements.txt
+# dependencies = [
+#     "numpy",
+#     "pandas",
+#     "matplotlib",
+#     # Add dolfin/fenics if possible via pip, otherwise manage separately
+# ]
+
+[tool.setuptools.packages.find]
+where = ["src"] # Tell setuptools to find packages under src

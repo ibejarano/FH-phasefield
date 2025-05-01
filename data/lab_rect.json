@@ -1,5 +1,5 @@
 {
-    "_comment": "Prueba con material blando",
+    "comment": "Malla de tipo rectangular",
     "E": 2e8,
     "nu": 0.3,
     "Gc": 2.7,
@@ -11,5 +11,11 @@
     "psi_model": "linear",
     "delta_H": 0.02,
     "dt": 1e-4,
-    "H": 15
+    "H": 15,
+    "mesh_data": {
+        "type": "rectangle",
+        "p0": [-1, -1],
+        "p1": [1, 1],
+        "nelems": [50, 50]
+    }
 }

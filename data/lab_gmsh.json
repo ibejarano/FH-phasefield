@@ -1,0 +1,19 @@
+{
+    "_comment": "Prueba con material blando",
+    "E": 2e8,
+    "nu": 0.3,
+    "Gc": 2.7,
+    "Qo": 2e-3,
+    "linit": 0.0075,
+    "aspect_hl": 3,
+    "h": 1e-3,
+    "px": 10000,
+    "psi_model": "linear",
+    "delta_H": 0.02,
+    "dt": 1e-4,
+    "H": 15,
+    "mesh_data": {
+        "type": "gmsh",
+        "xml_file": "curving_H_min"
+    }
+}
