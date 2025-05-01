@@ -11,9 +11,14 @@
     "psi_model": "linear",
     "delta_H": 0.02,
     "dt": 1e-4,
+    "t_max": 10,
     "H": 15,
     "mesh_data": {
         "type": "gmsh",
         "xml_file": "curving_H_min"
+    },
+    "tolerances":{
+        "volume": 1e-3,
+        "phi": 1e-3
     }
 }

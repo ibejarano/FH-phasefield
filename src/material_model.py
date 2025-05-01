@@ -1,4 +1,4 @@
-from dolfin import inv, sym, inner, tr, Identity, det, ln, dev, grad, conditional, gt
+from dolfin import inv, sym, inner, tr, Identity, det, ln, dev, grad, conditional, gt, assemble, dx
 
 def epsilon(u):
     return sym(grad(u))
@@ -48,3 +48,7 @@ def H(u, Hold, data, psi):
     delta_H = data.get("delta_H", 0.0)
     psi_u = psi(u, data)
     return conditional(gt(psi_u, Hold), psi_u, Hold + delta_H)
+
+def compute_fracture_volume(phi, u):
+    vol_frac = assemble( inner(grad(phi), -u) * dx )
+    return vol_frac

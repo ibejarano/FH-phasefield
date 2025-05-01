@@ -2,15 +2,17 @@ from dolfin import *
 import json
 from sys import argv
 import os
-from utils import read_data
-from src.mesh_setup import setup_gmsh, setup_rect_mesh
-from material_model import epsilon, select_sigma, select_psi, H
-from variational_forms import define_variational_forms
-from solvers import setup_solvers
-from output_utils import create_output_files, write_output, store_time_series
+from src.utils import read_data
+from src.mesh_setup import setup_gmsh, setup_rect_mesh, set_function_spaces
+from src.material_model import epsilon, select_sigma, select_psi, H, compute_fracture_volume
+from src.variational_forms import define_variational_forms
+from src.solvers import setup_solvers
+from src.output_utils import create_output_files, write_output, store_time_series
 
 
-def run_simulation(data, caseDir):
+def run_simulation(data):
+    caseDir = os.path.join("./results/", argv[1])
+
     # Mallado
     h_elem = data["h"] # TODO: Cambiar con el tamaño de la malla en zona de fractura
     aspect_hl = data["aspect_hl"] # aspect_hl = e = l/h
@@ -21,18 +23,11 @@ def run_simulation(data, caseDir):
     w0 = h_elem
     p_init = 100
 
-    # Control de simulacion
-    TOL_PHI = 1e-3 # Tolerancia de phi
-    TOL_VOL = 0.001 # 0.1% de tolerancia de volumen inyectado
-    DT = data["dt"]
-    T_FINAL = DT * 10000
     caseDir = os.path.join("./results", argv[1])
 
     ## MESHING ##
     mesh, boundary_markers = setup_gmsh(caseDir, data)
-    V = FunctionSpace(mesh, 'CG', 1)
-    W = VectorFunctionSpace(mesh, 'CG', 1)
-    WW = FunctionSpace(mesh, 'DG', 0)
+    V, W, WW = set_function_spaces(mesh)
 
     # 1 . MESH TIENE QUE SER DOMAIN
     # --- mesh esta importado, tiene que ser domain
@@ -75,7 +70,7 @@ def run_simulation(data, caseDir):
     pn = p_init
     pressure.assign(pn)
 
-    outfile = open(f"./{caseDir}/lab.json", 'w')
+    outfile = open(f"./{caseDir}/parameters_used.json", 'w')
     outfile.write(json.dumps(data))
     outfile.close()
 
@@ -83,17 +78,18 @@ def run_simulation(data, caseDir):
     solver_phi.solve()
     pold.assign(pnew)
 
-    Q0 = data["Qo"]
 
-    def adjust_pressure(solver_disp, pressure, unew, uold, pold, V0, Q0, DT, TOL_VOL, WW, psi, data):
+    def adjust_pressure(solver_disp, pressure, unew, uold, pold, V0, WW, psi, data):
         errDV = 1
         errDV1 = None
         errDV2 = None
+        Q0 = data["Qo"]
+        DT = data["dt"]
         DV0 = DT * Q0
         pn = list(pressure.values())[0]
         ite = 0
 
-        while abs(errDV) / DV0 > TOL_VOL:
+        while abs(errDV) / DV0 > data["tolerances"]["volume"]:
             ite += 1
             DV0 = DT * Q0
             try:
@@ -104,7 +100,7 @@ def run_simulation(data, caseDir):
             pressure.assign(pn)
             solver_disp.solve()
 
-            VK = assemble(inner(grad(pold), -unew) * dx)
+            VK = compute_fracture_volume(pold, unew)
             errDV = DV0 - (VK - V0)
             uold.assign(unew)
             Hold.assign(project(psi(unew, data), WW))
@@ -129,17 +125,13 @@ def run_simulation(data, caseDir):
         pold.assign(pnew)
         return err_phi
 
-    while t <= T_FINAL:
+    while t <= data["t_max"]:
         step += 1
         ite = 0
-        V0 = assemble( inner(grad(phit), -ut) * dx )
-        errDV = 1
-        errDV1 = None
-        errDV2 = None
-        DV0 = DT * Q0
+        V0 = compute_fracture_volume(phit, ut)
         err_phi = 1
-        while err_phi > TOL_PHI:
-            ite, errDV, pn = adjust_pressure(solver_disp, pressure, unew, uold, pold, V0, Q0, DT, TOL_VOL, WW, psi, data)
+        while err_phi > data["tolerances"]["phi"]:
+            ite, errDV, pn = adjust_pressure(solver_disp, pressure, unew, uold, pold, V0, WW, psi, data)
             if ite > 20:
                 print("Simulation finished by iterations")
                 break
@@ -152,14 +144,14 @@ def run_simulation(data, caseDir):
         ut.assign(unew)
         phit.assign(pnew)
 
-        vol_frac = assemble( inner(grad(phit), -ut) * dx )
-        t += DT
+        vol_frac = compute_fracture_volume(phit, ut)
+        t += data["dt"]
 
         fname.write(str(t) + ",")
         fname.write(str(pn) + ",")
         fname.write(str(vol_frac) + "\n")
 
-        print(f"Step: {step} - Converge t: {t:.4f} dt: {DT:.2e} --- Ites: {ite}")
+        print(f"Step: {step} - Converge t: {t:.4f} --- Ites: {ite}")
         # Save files
         if step % 10 == 0:
             write_output(out_xml, ut, phit, t, step)
@@ -173,5 +165,4 @@ def run_simulation(data, caseDir):
 
 set_log_level(50)
 data = read_data("lab_gmsh")
-caseDir = os.path.join("./results/", argv[1])
-run_simulation(data, caseDir)
+run_simulation(data)

@@ -19,3 +19,9 @@ def setup_rect_mesh(data):
     mesh = RectangleMesh(Point(p0[0], p0[1]), Point(p1[0], p1[1]), nelem[0], nelem[1])
 
     return mesh
+
+def set_function_spaces(mesh):
+    V = FunctionSpace(mesh, 'CG', 1)
+    W = VectorFunctionSpace(mesh, 'CG', 1)
+    WW = FunctionSpace(mesh, 'DG', 0)
+    return V, W, WW
