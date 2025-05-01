@@ -76,9 +76,7 @@ def run_simulation(data, caseDir, meshName):
     pn = p_init
     pressure.assign(pn)
 
-    outfile = open(f"./{caseDir}/simulation_output.txt", 'w')
-    outfile.write(" -- Algoritmo --- \n")
-    outfile.write(" Algoritmo con control de volumen \n")
+    outfile = open(f"./{caseDir}/lab.json", 'w')
     outfile.write(json.dumps(data))
     outfile.close()
 
@@ -124,7 +122,7 @@ def run_simulation(data, caseDir, meshName):
             if ite > 20:
                 break
 
-        return ite, errDV
+        return ite, errDV, pn
 
     def solve_phase_field(solver_phi, pnew, pold, mesh):
         solver_phi.solve()
@@ -134,7 +132,6 @@ def run_simulation(data, caseDir, meshName):
 
     while t <= T_FINAL:
         step += 1
-        print(f"Step: {step}")
         ite = 0
         V0 = assemble( inner(grad(phit), -ut) * dx )
         errDV = 1
@@ -143,7 +140,7 @@ def run_simulation(data, caseDir, meshName):
         DV0 = DT * Q0
         err_phi = 1
         while err_phi > TOL_PHI:
-            ite, errDV = adjust_pressure(solver_disp, pressure, unew, uold, pold, V0, Q0, DT, TOL_VOL, WW, psi, data)
+            ite, errDV, pn = adjust_pressure(solver_disp, pressure, unew, uold, pold, V0, Q0, DT, TOL_VOL, WW, psi, data)
             if ite > 20:
                 print("Simulation finished by iterations")
                 break
@@ -158,19 +155,24 @@ def run_simulation(data, caseDir, meshName):
 
         vol_frac = assemble( inner(grad(phit), -ut) * dx )
         t += DT
+
         fname.write(str(t) + ",")
-        fname.write(str(pnew) + ",")
+        fname.write(str(pn) + ",")
         fname.write(str(vol_frac) + "\n")
 
-        print(f"Converge t: {t:.4f} dt: {DT:.2e} --- Iteraciones: {ite}")
+        print(f"Step: {step} - Converge t: {t:.4f} dt: {DT:.2e} --- Ites: {ite}")
         # Save files
-        write_output(out_xml, ut, phit, t, step)
-        store_time_series(u_ts, phi_ts, ut, phit, t)
+        if step % 10 == 0:
+            write_output(out_xml, ut, phit, t, step)
+            store_time_series(u_ts, phi_ts, ut, phit, t)
+        if step >= 1000:
+            print("Simulation finished by step")
+            break
 
     fname.close()
     
 
-data = read_data("lab")
+data = read_data("data/lab")
 caseDir = os.path.join("./results/", argv[1])
 meshName = caseDir+"/"+argv[2]
 run_simulation(data, caseDir, meshName)
