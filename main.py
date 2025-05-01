@@ -80,20 +80,19 @@ def run_simulation(data):
 
 
     def adjust_pressure(solver_disp, pressure, unew, uold, pold, V0, WW, psi, data):
-        errDV = 1
-        errDV1 = None
-        errDV2 = None
+        errV = 1
+        errV1 = None
+        errV2 = None
         Q0 = data["Qo"]
         DT = data["dt"]
-        DV0 = DT * Q0
+        Vtarget = V0 + DT * Q0
         pn = list(pressure.values())[0]
         ite = 0
 
-        while abs(errDV) / DV0 > data["tolerances"]["volume"]:
+        while abs(errV)/Vtarget > data["tolerances"]["volume"]:
             ite += 1
-            DV0 = DT * Q0
             try:
-                pn = pn1 - errDV1 * (pn1 - pn2)/(errDV1 - errDV2)
+                pn = pn1 - errV1 * (pn1 - pn2)/(errV1 - errV2)
             except:
                 pn *= 1.001
 
@@ -101,23 +100,24 @@ def run_simulation(data):
             solver_disp.solve()
 
             VK = compute_fracture_volume(pold, unew)
-            errDV = DV0 - (VK - V0)
+            errV = Vtarget - VK
             uold.assign(unew)
             Hold.assign(project(psi(unew, data), WW))
 
             try:
                 pn2 = pn1
-                errDV2 = errDV1
+                errV2 = errV1
                 pn1 = pn
-                errDV1 = errDV
+                errV1 = errV
             except:
                 pn1 = pn
-                errDV1 = errDV
+                errV1 = errV
 
             if ite > 20:
+                ite = -1
                 break
 
-        return ite, errDV, pn
+        return ite, pn
 
     def solve_phase_field(solver_phi, pnew, pold, mesh):
         solver_phi.solve()
@@ -127,19 +127,14 @@ def run_simulation(data):
 
     while t <= data["t_max"]:
         step += 1
-        ite = 0
         V0 = compute_fracture_volume(phit, ut)
         err_phi = 1
         while err_phi > data["tolerances"]["phi"]:
-            ite, errDV, pn = adjust_pressure(solver_disp, pressure, unew, uold, pold, V0, WW, psi, data)
-            if ite > 20:
-                print("Simulation finished by iterations")
-                break
+            ite, pn = adjust_pressure(solver_disp, pressure, unew, uold, pold, V0, WW, psi, data)
+            if ite < 0:
+                print("*** Warning: Pressure adjust error ***")
+                exit()
             err_phi = solve_phase_field(solver_phi, pnew, pold, mesh)
-
-        if ite > 20:
-            print(" too much iterations ")
-            break
 
         ut.assign(unew)
         phit.assign(pnew)
@@ -153,12 +148,9 @@ def run_simulation(data):
 
         print(f"Step: {step} - Converge t: {t:.4f} --- Ites: {ite}")
         # Save files
-        if step % 10 == 0:
+        if step % 2 == 0:
             write_output(out_xml, ut, phit, t, step)
             store_time_series(u_ts, phi_ts, ut, phit, t)
-        if step >= 1000:
-            print("Simulation finished by step")
-            break
 
     fname.close()
     
