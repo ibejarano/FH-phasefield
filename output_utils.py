@@ -11,10 +11,9 @@ def create_output_files(mesh, caseDir):
     return xdmf, u_ts, phi_ts
 
 def write_output(xdmf, u, phi, t, step):
-    if step % 2 == 0:
-        xdmf.write(u, t)
-        xdmf.write(phi, t)
-        print("Saving VTK")
+    xdmf.write(u, t)
+    xdmf.write(phi, t)
+    print("Saving VTK")
 
 def store_time_series(u_ts, phi_ts, u, phi, t):
     u_ts.store(u.vector(), t)
