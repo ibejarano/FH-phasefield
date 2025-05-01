@@ -3,13 +3,13 @@
     "E": 2e8,
     "nu": 0.3,
     "Gc": 2.7,
-    "Qo": 1e-3,
-    "linit": 0.015,
+    "Qo": 2e-3,
+    "linit": 0.0075,
     "aspect_hl": 3,
-    "h": 2e-3,
+    "h": 1e-3,
     "px": 10000,
     "psi_model": "linear",
     "delta_H": 0.02,
     "dt": 1e-4,
-    "H": 10
+    "H": 15
 }

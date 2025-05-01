@@ -9,7 +9,7 @@ import sys # Para salir del script
 
 # --- Configuración ---
 RESULTS_BASE_DIR = "results"
-PARAMS_FILENAME = "simulation_output.txt"
+PARAMS_FILENAME = "lab.json"
 X_COL_NAME = 'Points_0' # Columna X en el CSV de puntos
 Y_COL_NAME = 'Points_1' # Columna Y en el CSV de puntos
 POLYNOMIAL_DEGREE = 2
