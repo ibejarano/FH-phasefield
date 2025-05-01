@@ -17,8 +17,6 @@ ES_SOLIDO_DE_REVOLUCION = NO
 CCONTORNO = NATURAL # Elegir entre PERIODICA, NATURAL, LIBRE
 LONG_C = 1000.0 # Solo relevante si CCONTORNO == PERIODICA
 
-# --- Funciones de Cálculo ---
-
 def calcular_curvatura(U, V, N, cc_type, long_c=None):
     """
     Calcula la longitud de los segmentos, vectores tangentes,
@@ -39,7 +37,7 @@ def calcular_curvatura(U, V, N, cc_type, long_c=None):
                ds (np.array): Longitudes de los segmentos (tamaño N).
     """
     if N < 3: # Necesitamos al menos 3 puntos para calcular diferencias centradas
-        print("Error: Se necesitan al menos 3 puntos para calcular la curvatura.", file=sys.stderr)
+        print(f"Error: Se necesitan al menos 3 puntos para calcular la curvatura (se tienen {N}).", file=sys.stderr)
         return None, None, None, None # Devuelve None para indicar error
 
     if cc_type == LIBRE:
@@ -237,16 +235,24 @@ def main():
         default=",", # Default to comma delimiter
         help="Delimitador de columnas en el archivo de entrada. Predeterminado: ','"
     )
-    # --- NUEVO ARGUMENTO ---
     parser.add_argument(
         "--order",
         action="store_true",
         help="Ordenar los puntos de entrada por la coordenada X ascendente antes de calcular. ¡Esto cambia la curva analizada!"
     )
-    # -----------------------
+    # --- NUEVO ARGUMENTO PARA PROMEDIAR ---
+    parser.add_argument(
+        "--average-every",
+        type=int,
+        default=0, # Default 0 means no averaging
+        metavar='N',
+        help="Promediar cada N puntos después de leer (y opcionalmente ordenar). Si N > 1, se realiza el promedio. Los puntos restantes se descartan. Predeterminado: 0 (sin promedio)."
+    )
+    # ------------------------------------
 
     args = parser.parse_args()
     input_filename = args.input_file
+    average_n = args.average_every # Tamaño del grupo para promediar
 
     # 1. Leer datos del archivo de entrada
     try:
@@ -260,7 +266,7 @@ def main():
         N = len(U)
         print(f"Puntos leídos: {N}")
         if N < 3:
-             print("Error: Se necesitan al menos 3 puntos para calcular la curvatura.", file=sys.stderr)
+             print("Error: Se necesitan al menos 3 puntos inicialmente.", file=sys.stderr)
              sys.exit(1)
 
     except FileNotFoundError:
@@ -287,6 +293,38 @@ def main():
         # La curvatura y el ángulo se calcularán para esta nueva secuencia ordenada por X.
     # -----------------------------
 
+    # --- PROMEDIAR SI SE SOLICITÓ ---
+    if average_n > 1:
+        print(f"Promediando cada {average_n} puntos...")
+        num_groups = N // average_n
+        if num_groups == 0:
+            print(f"Advertencia: No hay suficientes puntos ({N}) para formar ni un grupo de {average_n}. No se realizará el promedio.", file=sys.stderr)
+        else:
+            num_points_to_average = num_groups * average_n
+            remainder = N % average_n
+            if remainder > 0:
+                print(f"Advertencia: Se descartarán los últimos {remainder} puntos que no forman un grupo completo de {average_n}.", file=sys.stderr)
+
+            # Tomar solo los puntos que forman grupos completos
+            U_to_avg = U[:num_points_to_average]
+            V_to_avg = V[:num_points_to_average]
+
+            # Reorganizar en grupos y calcular la media
+            U_avg = U_to_avg.reshape(num_groups, average_n).mean(axis=1)
+            V_avg = V_to_avg.reshape(num_groups, average_n).mean(axis=1)
+
+            # Actualizar U, V y N
+            U = U_avg
+            V = V_avg
+            N = num_groups # El nuevo número de puntos es el número de grupos
+            print(f"Número de puntos después de promediar: {N}")
+
+            # Volver a verificar si hay suficientes puntos después de promediar
+            if N < 3:
+                print(f"Error: Después de promediar, quedan {N} puntos, que son menos de los 3 necesarios para calcular la curvatura.", file=sys.stderr)
+                sys.exit(1)
+    # --------------------------------
+
     # 2. Calcular curvatura, tangentes y longitudes de segmento
     print("Calculando curvatura...")
     # Pass N and cc_type correctly
@@ -303,10 +341,12 @@ def main():
 
     # 4. Preparar nombres de archivo de salida
     base_name = os.path.splitext(input_filename)[0]
-    # Añadir sufijo si se ordenó
-    suffix = "_ordered" if args.order else ""
-    output_whewell = f"{base_name}{suffix}.Whewell"
-    output_cesaro = f"{base_name}{suffix}.Cesaro"
+    # Añadir sufijos si se ordenó o promedió
+    order_suffix = "_ordered" if args.order else ""
+    avg_suffix = f"_avg{average_n}" if average_n > 1 else ""
+    output_whewell = f"{base_name}{order_suffix}{avg_suffix}_Whewell.csv"
+    output_cesaro = f"{base_name}{order_suffix}{avg_suffix}_Cesaro.csv"
+    output_points = f"{base_name}{order_suffix}{avg_suffix}_Points.csv"
 
     # 5. Guardar resultados
     try:
@@ -317,6 +357,10 @@ def main():
         print(f"Guardando ecuación de Cesaro en: {output_cesaro}")
         np.savetxt(output_cesaro, np.vstack((S, curvatura)).T, fmt='%.6e', delimiter='\t',
                    header='LongitudArco_S\tCurvatura', comments='')
+        
+        print(f"Guardando puntos promediados en: {output_points}")
+        np.savetxt(output_points, np.vstack((U, V)).T, fmt='%.6e', delimiter='\t',
+                   header='Point_X\tPoint_Y', comments='')
 
     except Exception as e:
         print(f"Error guardando los archivos de salida: {e}", file=sys.stderr)
@@ -327,7 +371,11 @@ def main():
     if args.plot:
         print("Generando gráficos...")
         try:
-            plot_title_suffix = " (Ordenado por X)" if args.order else ""
+            plot_title_suffix = ""
+            if args.order:
+                plot_title_suffix += " (Ordenado por X)"
+            if average_n > 1:
+                plot_title_suffix += f" (Promediado cada {average_n})"
 
             # --- Gráfico de Whewell ---
             plt.figure(figsize=(10, 6))
@@ -338,6 +386,7 @@ def main():
             plt.grid(True)
             plt.legend()
             plt.tight_layout()
+            plt.savefig(f"{base_name}{order_suffix}{avg_suffix}_Whewell.png")
 
             # --- Gráfico de Cesaro ---
             plt.figure(figsize=(10, 6))
@@ -349,13 +398,15 @@ def main():
             plt.legend()
             # plt.ylim(0, None) # Comentado por si la curvatura puede ser negativa
             plt.tight_layout()
+            plt.savefig(f"{base_name}{order_suffix}{avg_suffix}_Cesaro.png")
 
             # --- Gráfico Original XY (para verificar) ---
             # Este gráfico mostrará los puntos en el orden en que fueron procesados
-            # (ordenados si se usó --order, original si no)
+            # (ordenados y/o promediados si se usaron las opciones)
             plt.figure(figsize=(8, 8))
-            plt.plot(U, V, marker='.', linestyle='-', label=f'Datos XY{plot_title_suffix}')
-            plt.scatter(U[0], V[0], color='red', s=50, zorder=5, label='Punto Inicial (post-orden)') # Mark start point
+            plt.plot(U, V, marker='.', linestyle='-', label=f'Datos XY Procesados{plot_title_suffix}')
+            if N > 0: # Check if there are points left to plot
+                plt.scatter(U[0], V[0], color='red', s=50, zorder=5, label='Punto Inicial (post-procesado)') # Mark start point
             plt.xlabel("Coordenada X")
             plt.ylabel("Coordenada Y")
             plt.title(f"Datos XY Procesados{plot_title_suffix}\nArchivo: {os.path.basename(input_filename)}")
@@ -363,6 +414,7 @@ def main():
             plt.axis('equal') # Ensure aspect ratio is equal
             plt.legend()
             plt.tight_layout()
+            plt.savefig(f"{base_name}{order_suffix}{avg_suffix}_points.png")
 
 
             print("Mostrando gráficos... Cierra las ventanas para finalizar.")
