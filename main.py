@@ -13,7 +13,7 @@ if __name__ == "__main__":
     set_log_level(LogLevel.WARNING) # Or INFO, ERROR, etc. 50 is CRITICAL
 
     # Read configuration data
-    config_data = read_data("lab_gmsh") # Assuming 'lab_gmsh.json' in 'data/' folder
+    config_data = read_data("lab_rect") # Assuming 'lab_gmsh.json' in 'data/' folder
     # Create and run the simulation
     simulation = Simulation(config_data)
     simulation.run()

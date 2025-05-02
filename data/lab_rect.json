@@ -1,21 +1,35 @@
-{
-    "comment": "Malla de tipo rectangular",
+{"_comment": "Prueba con material blando",
     "E": 2e8,
     "nu": 0.3,
     "Gc": 2.7,
     "Qo": 2e-3,
-    "linit": 0.0075,
     "aspect_hl": 3,
     "h": 1e-3,
     "px": 10000,
     "psi_model": "linear",
     "delta_H": 0.02,
     "dt": 1e-4,
+    "t_max": 10,
     "H": 15,
     "mesh_data": {
         "type": "rectangle",
         "p0": [-1, -1],
         "p1": [1, 1],
-        "nelems": [50, 50]
-    }
+        "nelem": [120, 120]
+    },
+    "tolerances":{
+        "volume": 1e-3,
+        "phi": 1e-3
+    },
+    "boundary_conditions": {
+        "displacement": {
+            "20": {"value": [0.0, 0.0]}
+        },
+        "initial_crack" : {
+            "center": [0.0, 0.0],
+            "l0": 0.02,
+            "w0": 5e-3
+        }
+    },
+    "output_frequency": 10
 }

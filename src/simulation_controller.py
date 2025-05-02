@@ -21,7 +21,14 @@ class Simulation:
         """Initializes mesh, function spaces, variables, solvers, and output."""
         print("Setting up simulation...")
         ## MESHING ##
-        self.mesh, self.boundary_markers = setup_gmsh(self.caseDir, self.data)
+
+        if self.data["mesh_data"]["type"] == "rectangle":
+            self.mesh, self.boundary_markers = setup_rect_mesh(self.data)
+        elif self.data["mesh_data"]["type"] == "gmsh":
+            self.mesh, self.boundary_markers = setup_gmsh(self.caseDir, self.data)
+        else:
+            RuntimeError("config mesh data not recognized")
+
         self.V, self.W, self.WW = set_function_spaces(self.mesh)
 
         # Trial and Test functions (used in variational forms)
@@ -43,7 +50,7 @@ class Simulation:
 
         # Variational Forms and Solvers
         E_du, E_phi, self.pressure = define_variational_forms(
-            self.W, self.V, epsilon, self.sigma, H, self.psi, self.pold,
+            epsilon, self.sigma, H, self.psi, self.pold,
             self.u, self.v, self.p, self.q, self.unew, self.Hold, self.data, self.boundary_markers
         )
         self.solver_disp, self.solver_phi = setup_solvers(E_du, E_phi, self.unew, self.pnew, self.bc_u, self.bc_phi)

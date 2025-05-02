@@ -1,6 +1,6 @@
 from dolfin import inner, grad, dx, dot, Measure, Constant
 
-def define_variational_forms(W, V, epsilon, sigma, H, psi, pold, u, v, p, q, unew, Hold, data, boundary_markers):
+def define_variational_forms(epsilon, sigma, H, psi, pold, u, v, p, q, unew, Hold, data, boundary_markers):
     Gc = data["Gc"]
     l = data["aspect_hl"] * data["h"]
     mu = data["mu"]

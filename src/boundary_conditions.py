@@ -12,13 +12,11 @@ def setup_boundary_conditions(V, W, boundary_markers, data):
     bcs_phi = []
     bc_config = data.get("boundary_conditions", {}) # Leer config del JSON
 
-    # Ejemplo: BCs de desplazamiento
     for marker_id, bc_data in bc_config.get("displacement", {}).items():
         value = bc_data.get("value", [0.0, 0.0]) # Valor por defecto
         bc = DirichletBC(W, Constant(value), boundary_markers, int(marker_id))
         bcs_u.append(bc)
 
-    # Ejemplo: BC de phi (grieta inicial)
     crack_config = bc_config.get("initial_crack", {})
     if crack_config:
         center = crack_config.get("center", [0.0, 0.0])
@@ -28,12 +26,4 @@ def setup_boundary_conditions(V, W, boundary_markers, data):
         bc_phi_crack = DirichletBC(V, Constant(1.0), crack_subdomain)
         bcs_phi.append(bc_phi_crack)
 
-    # Añadir otras BCs de phi si se definen en el JSON...
-
     return bcs_u, bcs_phi
-
-# --- En main.py ---
-# from src.boundary_conditions import setup_boundary_conditions
-# ...
-# bc_u, bc_phi = setup_boundary_conditions(W, V, boundary_markers, data)
-# ...
