@@ -1,8 +1,7 @@
 # === Módulo de configuración de malla y espacios funcionales ===
-from dolfin import Mesh, MeshFunction, FunctionSpace, VectorFunctionSpace, Point, RectangleMesh, HDF5File, XDMFFile
+from dolfin import Mesh, MeshFunction, FunctionSpace, VectorFunctionSpace, Point, RectangleMesh
+import numpy as np # Import numpy
 from os import path
-import meshio
-import gmsh
 
 def setup_gmsh(caseDir, data):
     mesh_file = data["mesh_data"]["xml_file"]
@@ -27,18 +26,3 @@ def set_function_spaces(mesh):
     W = VectorFunctionSpace(mesh, 'CG', 1)
     WW = FunctionSpace(mesh, 'DG', 0)
     return V, W, WW
-
-
-def generate_gmsh(case_dir, mesh_name):
-
-    # Inicializar Gmsh
-    gmsh.initialize()
-
-    gmsh.option.setNumber("Mesh.Algorithm", 6)  # Frontal-Delaunay
-    gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)  # Versión 2.2 es compatible con ASCII v2
-    gmsh.option.setNumber("Mesh.Binary", 0)  # Asegura formato ASCII
-    
-    gmsh.open(f"./meshes/{mesh_name}.geo")
-    gmsh.model.mesh.generate(dim=2)  # Cambia dim a 3 si es un mallado 3D
-    gmsh.write(f"{case_dir}/{mesh_name}.msh")
-    gmsh.finalize()
