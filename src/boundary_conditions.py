@@ -15,7 +15,6 @@ def setup_boundary_conditions(V, W, boundary_markers, data):
     # Ejemplo: BCs de desplazamiento
     for marker_id, bc_data in bc_config.get("displacement", {}).items():
         value = bc_data.get("value", [0.0, 0.0]) # Valor por defecto
-        print(marker_id, value)
         bc = DirichletBC(W, Constant(value), boundary_markers, int(marker_id))
         bcs_u.append(bc)
 
