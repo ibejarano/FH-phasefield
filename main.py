@@ -8,19 +8,11 @@ from src.material_model import epsilon, select_sigma, select_psi, H, compute_fra
 from src.variational_forms import define_variational_forms
 from src.solvers import setup_solvers
 from src.output_utils import create_output_files, write_output, store_time_series
-
+from src.boundary_conditions import setup_boundary_conditions
 
 def run_simulation(data):
     caseDir = os.path.join("./results/", argv[1])
-
-    # Mallado
-    h_elem = data["h"] # TODO: Cambiar con el tamaño de la malla en zona de fractura
-    aspect_hl = data["aspect_hl"] # aspect_hl = e = l/h
-    l = aspect_hl*h_elem # Longitud de transición
-
     # Condiciones Iniciales
-    l0 = data["linit"]
-    w0 = h_elem
     p_init = 100
 
     caseDir = os.path.join("./results", argv[1])
@@ -40,17 +32,7 @@ def run_simulation(data):
     sigma = select_sigma("linear")  # o "hyperelastic"
     print(f"Usando modelo de energía: {psi_model}")
 
-    bcbottom  = DirichletBC(W, (0.0, 0.0), boundary_markers, 20)
-    bc_u = [bcbottom]
-
-    # Condicion de borde de la fractura, se marca la entalla inicial con el valor de 1
-    class CrackDomain(SubDomain):
-        def inside(self, x, on_boundary):
-            center = [0, 0.0]
-            return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
-
-    crack = CrackDomain()
-    bc_phi = [DirichletBC(V, Constant(1.0), crack)]
+    bc_u ,bc_phi = setup_boundary_conditions(V, W, boundary_markers, data)
 
     unew, uold, ut = Function(W), Function(W), Function(W, name="displacement")
     pnew, pold, Hold, phit = Function(V), Function(V), Function(V), Function(V, name="phi")
