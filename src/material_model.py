@@ -1,4 +1,4 @@
-from dolfin import inv, sym, inner, tr, Identity, det, ln, dev, grad, conditional, gt, assemble, dx
+from dolfin import inv, sym, inner, tr, Identity, det, ln, dev, grad, conditional, gt, assemble, dx, TensorFunctionSpace
 
 def epsilon(u):
     return sym(grad(u))

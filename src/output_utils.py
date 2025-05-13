@@ -1,6 +1,6 @@
 from dolfin import File, TimeSeries, XDMFFile
 
-def create_output_files(mesh, caseDir):
+def create_output_files(caseDir):
     xdmf = XDMFFile(f"{caseDir}/output.xdmf")
     xdmf.parameters["flush_output"] = True
     xdmf.parameters["functions_share_mesh"] = True
@@ -10,9 +10,10 @@ def create_output_files(mesh, caseDir):
 
     return xdmf, u_ts, phi_ts
 
-def write_output(xdmf, u, phi, t, step):
+def write_output(xdmf, u, phi, stress, t):
     xdmf.write(u, t)
     xdmf.write(phi, t)
+    xdmf.write(stress, t)
     print("Saving VTK")
 
 def store_time_series(u_ts, phi_ts, u, phi, t):

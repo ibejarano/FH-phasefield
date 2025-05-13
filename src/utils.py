@@ -93,31 +93,6 @@ def line_integral(u, A, B, n, cutoff = 0.0):
 
     return assemble(v*dx)
 
-def createSave(mesh, caseDir, fileType, varName=None):
-    if fileType.lower() == "xml":
-        File(f"{caseDir}/malla.xml.gz") << mesh
-        xdmffile = XDMFFile(f"{caseDir}/output.xdmf")
-        xdmffile.parameters["flush_output"] = True
-        xdmffile.parameters["functions_share_mesh"] = True
-        u_ts = TimeSeries(f"{caseDir}/u_series")
-        p_ts = TimeSeries(f"{caseDir}/phi_series")
-        return xdmffile, u_ts, p_ts
-    elif fileType.lower() == "vtu":
-        if varName == None:
-            varName = "out_variable"
-        out_f = File(f"{caseDir}/{varName}.pvd")
-        return out_f, None
-    else:
-        raise Exception("file Type unknown: only XML or VTU")
-
-def saveValues(saveFile, timesrs, vec, t):
-    if timesrs:
-        saveFile.write(vec, t)
-        timesrs.store(vec.vector(), t)
-    else:
-        saveFile << vec
-    return
-
 def get_values_overline_x(x1, x2, y=0.0, vec=None , npoints=100):
     tol = 0.0001 # avoid hitting points outside the domain
     xs = np.linspace(x1 + tol, x2 - tol, npoints)

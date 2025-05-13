@@ -2,13 +2,14 @@ from dolfin import *
 import json
 from sys import argv
 import os
-from utils import read_data
 from mesh_setup import setup_gmsh, setup_rect_mesh, set_function_spaces
 from material_model import epsilon, select_sigma, select_psi, H, compute_fracture_volume
 from variational_forms import define_variational_forms
 from solvers import setup_solvers
 from output_utils import create_output_files, write_output, store_time_series
 from boundary_conditions import setup_boundary_conditions
+import functools
+print = functools.partial(print, flush=True)
 
 class Simulation:
     def __init__(self, data):
@@ -30,7 +31,7 @@ class Simulation:
             RuntimeError("config mesh data not recognized")
 
         self.V, self.W, self.WW = set_function_spaces(self.mesh)
-
+        self.Vsig = TensorFunctionSpace(self.mesh, "DG", 0)
         # Trial and Test functions (used in variational forms)
         self.p, self.q = TrialFunction(self.V), TestFunction(self.V)
         self.u, self.v = TrialFunction(self.W), TestFunction(self.W)
@@ -47,6 +48,7 @@ class Simulation:
         # Functions
         self.unew, self.uold, self.ut = Function(self.W), Function(self.W), Function(self.W, name="displacement")
         self.pnew, self.pold, self.Hold, self.phit = Function(self.V), Function(self.V), Function(self.V), Function(self.V, name="phi")
+        self.sigt = Function(self.Vsig, name="stress")
 
         # Variational Forms and Solvers
         E_du, E_phi, self.pressure = define_variational_forms(
@@ -58,8 +60,8 @@ class Simulation:
         self.solver_disp.solve()
         self.solver_phi.solve()
 
-         # Output setup
-        self.out_xml, self.u_ts, self.phi_ts = create_output_files(self.mesh, self.caseDir)
+        # Output setup
+        self.out_xml, self.u_ts, self.phi_ts = create_output_files(self.caseDir)
         self.fname = open(f"./{self.caseDir}/output.csv", 'w')
         self.fname.write("time,pressure,volume\n") # Add header to CSV
 
@@ -181,6 +183,12 @@ class Simulation:
                 # Calculate volume at the end of the step
                 vol_frac = compute_fracture_volume(self.phit, self.ut)
 
+                # Compute and project stress before writing output
+                mu = self.data["mu"]
+                lmbda = self.data["lmbda"]
+                stress_expr = (1-self.phit)**2 * self.sigma(self.ut, mu, lmbda)
+                self.sigt.assign(project(stress_expr, self.Vsig))
+
                 # Write data to CSV
                 self.fname.write(f"{self.t},{self.pn},{vol_frac}\n")
 
@@ -189,8 +197,8 @@ class Simulation:
                 # Save output files periodically
                 if self.step % self.data.get("output_frequency", 10) == 0: # Use frequency from config or default
                     print(f"  Saving output at step {self.step}...")
-                    write_output(self.out_xml, self.ut, self.phit, self.t, self.step)
-                    store_time_series(self.u_ts, self.phi_ts, self.ut, self.phit, self.t)
+                    write_output(self.out_xml, self.ut, self.phit, self.sigt, self.t)
+                    # store_time_series(self.u_ts, self.phi_ts, self.ut, self.phit, self.t)
                     self.fname.flush() # Ensure CSV data is written to disk
 
                 # Optional: Add convergence checks or other break conditions here
