@@ -15,7 +15,7 @@
         "type": "rectangle",
         "p0": [-1, -1],
         "p1": [1, 1],
-        "nelem": [120, 120]
+        "nelem": [50, 50]
     },
     "tolerances":{
         "volume": 1e-3,
@@ -28,8 +28,8 @@
         "initial_crack" : {
             "center": [0.0, 0.0],
             "l0": 0.02,
-            "w0": 5e-3
+            "w0": 1e-3
         }
     },
-    "output_frequency": 10
+    "output_frequency": 2
 }
