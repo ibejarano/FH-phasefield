@@ -14,7 +14,6 @@ def write_output(xdmf, u, phi, stress, t):
     xdmf.write(u, t)
     xdmf.write(phi, t)
     xdmf.write(stress, t)
-    print("Saving VTK")
 
 def store_time_series(u_ts, phi_ts, u, phi, t):
     u_ts.store(u.vector(), t)

@@ -1,14 +1,18 @@
 from dolfin import *
 import json
+import time
+import datetime
 from sys import argv
+from sys import stdout
 import os
+import functools
+
 from mesh_setup import setup_gmsh, setup_rect_mesh, set_function_spaces
 from material_model import epsilon, select_sigma, select_psi, H, compute_fracture_volume
 from variational_forms import define_variational_forms
 from solvers import setup_solvers
 from output_utils import create_output_files, write_output, store_time_series
 from boundary_conditions import setup_boundary_conditions
-import functools
 print = functools.partial(print, flush=True)
 
 class Simulation:
@@ -169,8 +173,14 @@ class Simulation:
     def run(self):
         """Runs the main simulation loop."""
         print("\n--- Starting Simulation ---")
+        total_steps = int(self.data["t_max"] / self.data["dt"])
+        start_time = time.time()
+        print(f"Total steps: {total_steps} | Total time: {self.data['t_max']:.4f}")
+        saved_vtus = 0
+        total_vtus = int(total_steps / self.data.get("output_frequency", 10))
         try:
             while self.t <= self.data["t_max"]:
+                step_start = time.time()
                 self.step += 1
                 self.t += self.data["dt"]
 
@@ -192,15 +202,23 @@ class Simulation:
                 # Write data to CSV
                 self.fname.write(f"{self.t},{self.pn},{vol_frac}\n")
 
-                print(f"Step: {self.step} | Time: {self.t:.4f} | Pressure: {self.pn:.4e} | Volume: {vol_frac:.4e}")
+
+                elapsed = time.time() - start_time
+                avg_time = elapsed / self.step
+                remaining_steps = total_steps - self.step
+                remaining_time = remaining_steps * avg_time
+                end_time = datetime.datetime.now() + datetime.timedelta(seconds=remaining_time)
+                
 
                 # Save output files periodically
                 if self.step % self.data.get("output_frequency", 10) == 0: # Use frequency from config or default
-                    print(f"  Saving output at step {self.step}...")
                     write_output(self.out_xml, self.ut, self.phit, self.sigt, self.t)
                     # store_time_series(self.u_ts, self.phi_ts, self.ut, self.phit, self.t)
                     self.fname.flush() # Ensure CSV data is written to disk
-
+                    saved_vtus +=1
+                msg = f"Estimated end: {end_time.strftime('%Y-%m-%d %H:%M:%S')} | Vtks saved: {saved_vtus}/{total_vtus} | Step: {self.step}/{total_steps}"
+                print('\r' + msg + ' '*20, end='')
+                stdout.flush()
                 # Optional: Add convergence checks or other break conditions here
 
         except Exception as e:
