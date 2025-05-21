@@ -14,8 +14,11 @@ def setup_boundary_conditions(V, W, boundary_markers, data):
 
     for marker_id, bc_data in bc_config.get("displacement", {}).items():
         value = bc_data.get("value", [0.0, 0.0]) # Valor por defecto
-        bc = DirichletBC(W, Constant(value), boundary_markers, int(marker_id))
-        bcs_u.append(bc)
+        # value = [None if v == "None" else v for v in value]
+        for i, v in enumerate(value):
+            if v != "None" and v is not None:
+                bc = DirichletBC(W.sub(i), Constant(v), boundary_markers, int(marker_id))
+                bcs_u.append(bc)
 
     crack_config = bc_config.get("initial_crack", {})
     if crack_config:
