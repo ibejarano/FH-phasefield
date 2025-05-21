@@ -61,11 +61,12 @@ def get_E_expression(data):
         prev = None
         for i, region in enumerate(regions):
             if i == 0:
-                expr += f"if (x[0] <= {region['x_max']})*{region['E']} + "
+                expr += f"(x[0]<={region['x_max']})*{region['E']} + "
             else:
-                prev = regions[i-1]["x_max"]
-                expr += f"((x[0] > {prev}) && (x[0] <= {region['x_max']}))*{region['E']} + "
-        expr += f"((x[0] > {prev}) && (x[0] <= 1))*{regions[-1]['E']}"
+                prev = regions[i-1]['x_max']
+                expr += f"((x[0]>{prev}) && (x[0]<={region['x_max']}))*{region['E']} + "
+        expr += f"((x[0]>{regions[-1]['x_max']}))*{regions[-1]['E']}"
+
         return Expression(expr, degree=0)
     else:
         return Expression(str(data["E"]), degree=0)

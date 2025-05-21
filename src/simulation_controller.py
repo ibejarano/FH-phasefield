@@ -90,6 +90,12 @@ class Simulation:
         outfile.close()
         print("Setup complete.")
 
+        self.E_func = project(self.E_expr, self.V)
+        from dolfin import XDMFFile
+        with XDMFFile(f"./{self.caseDir}/E_regions.xdmf") as xdmf:
+            xdmf.write(self.E_func, 0.0)
+        print(f"Saved E regions to {self.caseDir}/E_regions.xdmf")
+
     def adjust_pressure(self, V0):
         """Iteratively adjusts pressure to match target volume inflow."""
         errV = 1.0 # Initialize with a value > tolerance
