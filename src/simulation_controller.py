@@ -1,4 +1,5 @@
-from dolfin import *
+from dolfin import TensorFunctionSpace, Function, TrialFunction, TestFunction, project
+from dolfin import errornorm
 import json
 import time
 import datetime
@@ -8,7 +9,7 @@ import os
 import functools
 
 from mesh_setup import setup_gmsh, setup_rect_mesh, set_function_spaces
-from material_model import epsilon, select_sigma, select_psi, H, compute_fracture_volume
+from material_model import epsilon, select_sigma, select_psi, H, compute_fracture_volume, get_E_expression
 from variational_forms import define_variational_forms
 from solvers import setup_solvers
 from output_utils import create_output_files, write_output, store_time_series
@@ -41,10 +42,12 @@ class Simulation:
         self.u, self.v = TrialFunction(self.W), TestFunction(self.W)
 
         # Material models
-        psi_model = self.data.get("psi_model", "linear")
-        self.psi = select_psi(psi_model)
+        self.E_expr = get_E_expression(self.data)
+        nu = self.data["nu"]
+        self.psi = select_psi("linear")
         self.sigma = select_sigma("linear") # Or select based on data if needed
-        print(f"Using energy model: {psi_model}")
+        
+        print(f"Using energy model: Linear")
 
         # Boundary Conditions
         self.bc_u, self.bc_phi = setup_boundary_conditions(self.V, self.W, self.boundary_markers, self.data)
@@ -56,9 +59,10 @@ class Simulation:
 
         # Variational Forms and Solvers
         E_du, E_phi, self.pressure = define_variational_forms(
-            epsilon, self.sigma, H, self.psi, self.pold,
-            self.u, self.v, self.p, self.q, self.unew, self.Hold, self.data, self.boundary_markers
+            epsilon, self.sigma, H, self.psi, self.pold, self.u,
+            self.v, self.p, self.q, self.unew, self.Hold, self.data, self.boundary_markers, self.E_expr, nu
         )
+
         self.solver_disp, self.solver_phi = setup_solvers(E_du, E_phi, self.unew, self.pnew, self.bc_u, self.bc_phi)
         
         self.solver_disp.solve()
@@ -118,7 +122,7 @@ class Simulation:
 
             # Update state for next iteration/step
             self.uold.assign(self.unew)
-            self.Hold.assign(project(self.psi(self.unew, self.data), self.WW))
+            self.Hold.assign(project(self.psi(self.unew, self.E_expr, self.data.get("nu", 0.3)), self.WW))
 
             # Store previous values for secant method
             pn2 = pn1
@@ -180,7 +184,6 @@ class Simulation:
         total_vtus = int(total_steps / self.data.get("output_frequency", 10))
         try:
             while self.t <= self.data["t_max"]:
-                step_start = time.time()
                 self.step += 1
                 self.t += self.data["dt"]
 
@@ -194,9 +197,7 @@ class Simulation:
                 vol_frac = compute_fracture_volume(self.phit, self.ut)
 
                 # Compute and project stress before writing output
-                mu = self.data["mu"]
-                lmbda = self.data["lmbda"]
-                stress_expr = (1-self.phit)**2 * self.sigma(self.ut, mu, lmbda)
+                stress_expr = (1-self.phit)**2 * self.sigma(self.ut, self.E_expr, self.data.get("nu", 0.3))
                 self.sigt.assign(project(stress_expr, self.Vsig))
 
                 # Write data to CSV

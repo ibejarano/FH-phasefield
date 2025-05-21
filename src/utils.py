@@ -1,14 +1,6 @@
 from dolfin import *
 import numpy as np
-from tqdm import tqdm
 import json
-
-E = 2e7
-nu = 0.3
-Gc = 2.7 # Energía por unidad de superficie de fractura
-Q0 = 1e-4
-lmbda = E*nu / ((1+nu)  * (1-2*nu))
-mu = E / (2*(1+nu))
 
 def compute_opening_grad(uvec, phivec, grad_phivec, lelem, lfracmax, tol=0.01):
     #grad_phi.assign(project(grad(phit), WW))
@@ -128,10 +120,7 @@ def save_stress(caseDir, step=100):
 
     times = u_ts.vector_times()
 
-    pbar = tqdm(total=len(times[::step]))
-
     for t in times[::step]:
-        pbar.update(1)
         u_ts.retrieve(ut.vector(), t)
         phi_ts.retrieve(phit.vector(), t)
         sigt.assign(project( (1-phit)**2 * sigma(ut), Vsig))
@@ -153,7 +142,6 @@ def save_stress(caseDir, step=100):
         xdmffile.write(theta11, t)
         xdmffile.write(theta22, t)
 
-    pbar.close()
     return
 
 def sigma11(sigma_x, sigma_y, tau_xy): # magnitude of first principal stress
@@ -169,13 +157,6 @@ def thethap(sigma_x, sigma_y, tau_xy):
 def read_data(fname):
     with open(f"data/{fname}.json", "r") as f:
         data = json.load(f)
-    
-    E = data["E"]
-    nu = data["nu"]
-    lmbda = E*nu / ((1+nu)  * (1-2*nu))
-    mu = E / (2*(1+nu))
-    data.update({"mu": mu})
-    data.update({"lmbda": lmbda})
     return data
 
 # ("stress_0"+"stress_4")/2 + sqrt((("stress_0"-"stress_4")/2)^2 + "stress_1"^2)
