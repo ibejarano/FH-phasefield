@@ -6,14 +6,24 @@ from src.simulation_controller import Simulation
 from dolfin import set_log_level, LogLevel
 
 if __name__ == "__main__":
-    if len(argv) < 3:
-        print("Uso: python main.py <nombre_del_caso> <archivo_configuracion>")
+    if len(argv) < 2:
+        print("Uso: python main.py <archivo_configuracion>")
         exit(1)
 
-    case_name = argv[1]
-    config_file = argv[2]
+    config_file = argv[1]
+    config_data = read_data(config_file)
+    if config_data is None:
+        print(f"Error al leer el archivo de configuración: {config_file}")
+        exit(1)
+
+    case_name = config_data.get("name", None)
+    if case_name is None:
+        print("El archivo de configuración debe contener un campo 'name'.")
+        exit(1)
+
     caseDir = os.path.join("./results", case_name)
-    mesh_name = "curving_H"
+    config_data["caseDir"] = caseDir
+    mesh_name = config_data.get("mesh_data", {}).get("file_name", "mesh")
 
     # Si el directorio existe, preguntar confirmación
     if os.path.isdir(caseDir):
@@ -30,7 +40,7 @@ if __name__ == "__main__":
     gmsh_cmd = [
         "gmsh", "-2", "-format", "msh2",
         f"meshes/{mesh_name}.geo",
-        "-o", f"{caseDir}/{mesh_name}.msh"
+        "-o", f"{caseDir}/{mesh_name}.msh", "-v","0"
     ]
     subprocess.run(gmsh_cmd, check=True)
 
@@ -46,6 +56,5 @@ if __name__ == "__main__":
     set_log_level(LogLevel.ERROR)
 
     # Leer configuración y ejecutar simulación
-    config_data = read_data(config_file)
     simulation = Simulation(config_data)
     simulation.run()

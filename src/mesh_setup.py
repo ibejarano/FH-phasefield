@@ -4,7 +4,7 @@ import numpy as np # Import numpy
 from os import path
 
 def setup_gmsh(caseDir, data):
-    mesh_file = data["mesh_data"]["xml_file"]
+    mesh_file = data["mesh_data"]["file_name"]
     mesh_path = path.join(caseDir, mesh_file)
     mesh = Mesh(mesh_path + ".xml")
     boundary_markers = MeshFunction('size_t', mesh, mesh_path + "_facet_region.xml")

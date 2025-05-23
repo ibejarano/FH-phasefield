@@ -19,7 +19,7 @@ print = functools.partial(print, flush=True)
 class Simulation:
     def __init__(self, data):
         self.data = data
-        self.caseDir = os.path.join("./results/", argv[1])
+        self.caseDir = data.get("caseDir", "results")
         self.p_init = data.get("p_init", 100) # Get initial pressure from data or default
         self.setup()
 
