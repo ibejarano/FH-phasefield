@@ -1,28 +1,31 @@
 {
-    "_comment": "Prueba con material blando",
+    "name": "gmsh_1",
+    "description": "GMSH mesh case", 
     "E": 2e8,
     "nu": 0.3,
     "Gc": 2.7,
     "Qo": 2e-3,
     "aspect_hl": 3,
     "h": 1e-3,
-    "px": 10000,
+    "h_coarse": 8e-1,
+    "px": 0,
     "psi_model": "linear",
     "delta_H": 0.02,
-    "dt": 1e-4,
-    "t_max": 10,
-    "H": 15,
+    "dt": 1e-5,
+    "t_max": 0.006,
+    "H": 0.5,
     "mesh_data": {
         "type": "gmsh",
-        "xml_file": "curving_H_min"
+        "file_name": "curving_H"
     },
     "tolerances":{
-        "volume": 1e-3,
-        "phi": 1e-3
+        "volume": 1e-5,
+        "phi": 0.5e-3
     },
     "boundary_conditions": {
         "displacement": {
-            "20": {"value": [0.0, 0.0]}
+            "20": {"value": [0.0, 0.0]},
+            "40": {"value": [0.0, 0.0]}
         },
         "initial_crack" : {
             "center": [0.0, 0.0],

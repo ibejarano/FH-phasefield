@@ -5,6 +5,28 @@ from src.utils import read_data
 from src.simulation_controller import Simulation
 from dolfin import set_log_level, LogLevel
 
+
+def actualizar_geo_con_parametros(geo_path, h, h_coarse, H):
+    """
+    Reemplaza los valores de gridsize y ref_gridsize en el archivo .geo.
+    """
+    with open(geo_path, "r") as f:
+        lines = f.readlines()
+
+    nuevas_lineas = []
+    for line in lines:
+        if line.strip().startswith("gridsize"):
+            nuevas_lineas.append(f"gridsize = {h_coarse};\n")
+        elif line.strip().startswith("ref_gridsize"):
+            nuevas_lineas.append(f"ref_gridsize = {h};\n")
+        elif line.strip().startswith("H_sup"):
+            nuevas_lineas.append(f"H_sup = {H};\n")
+        else:
+            nuevas_lineas.append(line)
+
+    with open(geo_path, "w") as f:
+        f.writelines(nuevas_lineas)
+
 if __name__ == "__main__":
     if len(argv) < 2:
         print("Uso: python main.py <archivo_configuracion>")
@@ -25,6 +47,16 @@ if __name__ == "__main__":
     config_data["caseDir"] = caseDir
     mesh_name = config_data.get("mesh_data", {}).get("file_name", "mesh")
 
+    geo_path = f"meshes/{mesh_name}.geo"
+    h = config_data.get("h", None)
+    h_coarse = config_data.get("h_coarse", None)
+    H = config_data.get("H", None)
+    if h is not None and h_coarse is not None:
+        actualizar_geo_con_parametros(geo_path, h, h_coarse, H)
+    else:
+        print("Advertencia: No se encontraron los parámetros 'h' y 'h_coarse' en el archivo de configuración.")
+
+    exit()
     # Si el directorio existe, preguntar confirmación
     if os.path.isdir(caseDir):
         confirm = input(f"El directorio '{caseDir}' ya existe. ¿Continuar y sobrescribir? [y/N]: ").lower()
