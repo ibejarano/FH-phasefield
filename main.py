@@ -56,7 +56,6 @@ if __name__ == "__main__":
     else:
         print("Advertencia: No se encontraron los parámetros 'h' y 'h_coarse' en el archivo de configuración.")
 
-    exit()
     # Si el directorio existe, preguntar confirmación
     if os.path.isdir(caseDir):
         confirm = input(f"El directorio '{caseDir}' ya existe. ¿Continuar y sobrescribir? [y/N]: ").lower()
@@ -72,7 +71,7 @@ if __name__ == "__main__":
     gmsh_cmd = [
         "gmsh", "-2", "-format", "msh2",
         f"meshes/{mesh_name}.geo",
-        "-o", f"{caseDir}/{mesh_name}.msh", "-v","0"
+        "-o", f"{caseDir}/{mesh_name}.msh", "-v", "0"
     ]
     subprocess.run(gmsh_cmd, check=True)
 

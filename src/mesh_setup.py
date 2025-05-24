@@ -51,5 +51,4 @@ def setup_rect_mesh(data):
 def set_function_spaces(mesh):
     V = FunctionSpace(mesh, 'CG', 1)
     W = VectorFunctionSpace(mesh, 'CG', 1)
-    WW = FunctionSpace(mesh, 'DG', 0)
-    return V, W, WW
+    return V, W

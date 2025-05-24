@@ -1,4 +1,4 @@
-from dolfin import TensorFunctionSpace, Function, TrialFunction, TestFunction, project
+from dolfin import TensorFunctionSpace, Function, TrialFunction, TestFunction, project, FunctionSpace
 from dolfin import errornorm
 import json
 import time
@@ -9,11 +9,12 @@ import os
 import functools
 
 from mesh_setup import setup_gmsh, setup_rect_mesh, set_function_spaces
-from material_model import epsilon, select_sigma, select_psi, H, compute_fracture_volume, get_E_expression
+from material_model import epsilon, select_sigma, select_psi, compute_fracture_volume, get_E_expression
 from variational_forms import define_variational_forms
 from solvers import setup_solvers
 from output_utils import create_output_files, write_output, store_time_series
 from boundary_conditions import setup_boundary_conditions
+from history_field import HistoryField
 print = functools.partial(print, flush=True)
 
 class Simulation:
@@ -35,7 +36,8 @@ class Simulation:
         else:
             RuntimeError("config mesh data not recognized")
 
-        self.V, self.W, self.WW = set_function_spaces(self.mesh)
+        self.V, self.W = set_function_spaces(self.mesh)
+        self.WW = FunctionSpace(self.mesh, "DG", 0)
         self.Vsig = TensorFunctionSpace(self.mesh, "DG", 0)
         # Trial and Test functions (used in variational forms)
         self.p, self.q = TrialFunction(self.V), TestFunction(self.V)
@@ -47,6 +49,7 @@ class Simulation:
         self.psi = select_psi("linear")
         self.sigma = select_sigma("linear") # Or select based on data if needed
         
+        self.history = HistoryField(self.WW, self.psi, self.E_expr, nu, self.data)
         print(f"Using energy model: Linear")
 
         # Boundary Conditions
@@ -54,13 +57,13 @@ class Simulation:
 
         # Functions
         self.unew, self.uold, self.ut = Function(self.W), Function(self.W), Function(self.W, name="displacement")
-        self.pnew, self.pold, self.Hold, self.phit = Function(self.V), Function(self.V), Function(self.V), Function(self.V, name="phi")
+        self.pnew, self.pold, self.phit = Function(self.V), Function(self.V), Function(self.V, name="phi")
         self.sigt = Function(self.Vsig, name="stress")
 
         # Variational Forms and Solvers
         E_du, E_phi, self.pressure = define_variational_forms(
-            epsilon, self.sigma, H, self.psi, self.pold, self.u,
-            self.v, self.p, self.q, self.unew, self.Hold, self.data, self.boundary_markers, self.E_expr, nu
+            epsilon, self.sigma, self.history.get(), self.pold, self.u,
+            self.v, self.p, self.q, self.data, self.boundary_markers, self.E_expr, nu
         )
 
         self.solver_disp, self.solver_phi = setup_solvers(E_du, E_phi, self.unew, self.pnew, self.bc_u, self.bc_phi)
@@ -128,7 +131,7 @@ class Simulation:
 
             # Update state for next iteration/step
             self.uold.assign(self.unew)
-            self.Hold.assign(project(self.psi(self.unew, self.E_expr, self.data.get("nu", 0.3)), self.WW))
+            self.history.update(self.unew)
 
             # Store previous values for secant method
             pn2 = pn1
