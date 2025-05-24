@@ -25,3 +25,23 @@ class PhaseField:
     
     def get_error(self):
         return errornorm(self.new, self.old, norm_type='l2', mesh=self.mesh)
+    
+    def setup_solver(self, E_phi, bc_phi):
+        """
+        Configura el Solver para el campo de fase.
+        """
+        from dolfin import LinearVariationalProblem, LinearVariationalSolver, lhs, rhs
+        p_phi = LinearVariationalProblem(lhs(E_phi), rhs(E_phi), self.new, bc_phi)
+        solver_phi = LinearVariationalSolver(p_phi)
+        solver_phi.parameters["linear_solver"] = "gmres"
+        solver_phi.parameters["preconditioner"] = "ilu"
+        self.solver = solver_phi
+
+    def solve(self):
+        """
+        Resuelve el problema de campo de fase.
+        """
+        self.solver.solve()
+        error = self.get_error()
+        self.update()
+        return error

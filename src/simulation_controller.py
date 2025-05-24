@@ -1,16 +1,13 @@
 from dolfin import TensorFunctionSpace, Function, project
-from dolfin import errornorm
 import json
 import time
 import datetime
-from sys import argv
 from sys import stdout
 import functools
 
 from mesh_setup import setup_gmsh, setup_rect_mesh
 from material_model import epsilon, select_sigma, select_psi, compute_fracture_volume, get_E_expression
 from variational_forms import define_variational_forms
-from solvers import setup_solvers
 from output_utils import create_output_files, write_output, store_time_series
 from boundary_conditions import setup_boundary_conditions
 from fields.history import HistoryField
@@ -38,19 +35,16 @@ class Simulation:
         else:
             RuntimeError("config mesh data not recognized")
 
-        #self.V, self.W = set_function_spaces(self.mesh)
         self.Vsig = TensorFunctionSpace(self.mesh, "DG", 0)
-        # Trial and Test functions (used in variational forms)
-        #self.p, self.q = TrialFunction(self.V), TestFunction(self.V)
-        #self.u, self.v = TrialFunction(self.W), TestFunction(self.W)
 
         # Material models
         self.E_expr = get_E_expression(self.data)
         nu = self.data["nu"]
         self.psi = select_psi("linear")
-        self.sigma = select_sigma("linear") # Or select based on data if needed
+        self.sigma = select_sigma("linear")
         print(f"Using energy model: Linear")
 
+        # Fields definitions
         self.history = HistoryField(self.mesh, self.psi, self.E_expr, nu, self.data)
         self.displacement = DisplacementField(self.mesh)
         self.phase = PhaseField(self.mesh)
@@ -59,8 +53,6 @@ class Simulation:
         self.bc_u, self.bc_phi = setup_boundary_conditions(self.phase, self.displacement, self.boundary_markers, self.data)
 
         # Functions
-        #self.unew, self.uold, self.ut = Function(self.W), Function(self.W), Function(self.W, name="displacement")
-        #self.pnew, self.pold, self.phit = Function(self.V), Function(self.V), Function(self.V, name="phi")
         self.sigt = Function(self.Vsig, name="stress")
 
         # Variational Forms and Solvers
@@ -69,13 +61,8 @@ class Simulation:
             self.data, self.boundary_markers, self.E_expr, nu
         )
 
-        unew = self.displacement.get()
-        pnew = self.phase.get()
-
-        self.solver_disp, self.solver_phi = setup_solvers(E_du, E_phi, unew, pnew, self.bc_u, self.bc_phi)
-        
-        self.solver_disp.solve()
-        self.solver_phi.solve()
+        self.displacement.setup_solver(E_du, self.bc_u)
+        self.phase.setup_solver(E_phi, self.bc_phi)
 
         # Output setup
         self.out_xml, self.u_ts, self.phi_ts = create_output_files(self.caseDir)
@@ -90,8 +77,7 @@ class Simulation:
 
         # Initial solve/state setup
         print("Performing initial solve...")
-        self.solver_phi.solve()
-        self.phase.update()
+        self.phase.solve()
 
         # Save parameters used
         outfile = open(f"./{self.caseDir}/parameters_used.json", 'w')
@@ -129,14 +115,13 @@ class Simulation:
                 pn *= 1.01
 
             self.pressure.assign(pn)
-            self.solver_disp.solve()
+            self.displacement.solve()
+            self.history.update(unew)
 
             VK = compute_fracture_volume(pold, unew) # Use pold here as BCs depend on it
             errV = Vtarget - VK
 
             # Update state for next iteration/step
-            self.displacement.update()
-            self.history.update(unew)
 
             # Store previous values for secant method
             pn2 = pn1
@@ -150,13 +135,6 @@ class Simulation:
 
         # print(f"Adjust pressure converged in {ite} iterations. P = {pn:.4e}, V_err = {errV:.4e}")
         return ite, pn
-
-    def solve_phase_field(self):
-        """Solves the phase-field equation and returns the error."""
-        self.solver_phi.solve()
-        err_phi = self.phase.get_error()
-        self.phase.update()
-        return err_phi
 
     def solve_step(self, V0):
         """Solves one coupled time step using staggered approach."""
@@ -174,7 +152,7 @@ class Simulation:
                 raise RuntimeError("Pressure adjustment failed.") # Raise exception instead of exit()
 
             # Solve phase field
-            err_phi = self.solve_phase_field()
+            err_phi = self.phase.solve()
 
             # Max iterations guard for the outer loop
             if outer_ite > 15:

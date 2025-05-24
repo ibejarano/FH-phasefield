@@ -1,4 +1,4 @@
-from dolfin import DirichletBC, SubDomain, Constant, Point # etc.
+from dolfin import DirichletBC, SubDomain, Constant
 
 def create_crack_domain(center, l0, w0):
     class CrackDomain(SubDomain):

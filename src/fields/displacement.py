@@ -19,3 +19,20 @@ class DisplacementField:
     def get(self):
         return self.new
     
+    def setup_solver(self, E_du, bc_u):
+        """
+        Configura el Solver para el campo de desplazamiento.
+        """
+        from dolfin import LinearVariationalProblem, LinearVariationalSolver, lhs, rhs
+        p_u = LinearVariationalProblem(lhs(E_du), rhs(E_du), self.new, bc_u)
+        solver_u = LinearVariationalSolver(p_u)
+        #solver_u.parameters["linear_solver"] = "gmres"
+        #solver_u.parameters["preconditioner"] = "ilu"
+        self.solver = solver_u
+
+    def solve(self):
+        """
+        Resuelve el problema de desplazamiento.
+        """
+        self.solver.solve()
+        self.update()
