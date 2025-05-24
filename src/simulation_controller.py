@@ -1,3 +1,4 @@
+import logging
 from dolfin import TensorFunctionSpace, Function, project
 import json
 import time
@@ -14,26 +15,26 @@ from fields.history import HistoryField
 from fields.phase import PhaseField
 from fields.displacement import DisplacementField
 
-print = functools.partial(print, flush=True)
+logger = logging.getLogger(__name__)
 
 class Simulation:
     def __init__(self, data):
         self.data = data
         self.caseDir = data.get("caseDir", "results")
-        self.p_init = data.get("p_init", 100) # Get initial pressure from data or default
+        self.p_init = data.get("p_init", 100)
         self.setup()
 
     def setup(self):
         """Initializes mesh, function spaces, variables, solvers, and output."""
-        print("Setting up simulation...")
+        logger.info("Setting up simulation...")
         ## MESHING ##
-
         if self.data["mesh_data"]["type"] == "rectangle":
             self.mesh, self.boundary_markers = setup_rect_mesh(self.data)
         elif self.data["mesh_data"]["type"] == "gmsh":
             self.mesh, self.boundary_markers = setup_gmsh(self.caseDir, self.data)
         else:
-            RuntimeError("config mesh data not recognized")
+            logger.error("config mesh data not recognized")
+            raise RuntimeError("config mesh data not recognized")
 
         self.Vsig = TensorFunctionSpace(self.mesh, "DG", 0)
 
@@ -42,7 +43,7 @@ class Simulation:
         nu = self.data["nu"]
         self.psi = select_psi("linear")
         self.sigma = select_sigma("linear")
-        print(f"Using energy model: Linear")
+        logger.info("Using energy model: Linear")
 
         # Fields definitions
         self.history = HistoryField(self.mesh, self.psi, self.E_expr, nu, self.data)
@@ -67,7 +68,7 @@ class Simulation:
         # Output setup
         self.out_xml, self.u_ts, self.phi_ts = create_output_files(self.caseDir)
         self.fname = open(f"./{self.caseDir}/output.csv", 'w')
-        self.fname.write("time,pressure,volume\n") # Add header to CSV
+        self.fname.write("time,pressure,volume\n")
 
         # Simulation control variables
         self.t = 0.0
@@ -76,31 +77,27 @@ class Simulation:
         self.pressure.assign(self.pn)
 
         # Initial solve/state setup
-        print("Performing initial solve...")
+        logger.info("Performing initial solve...")
         self.phase.solve()
 
         # Save parameters used
         outfile = open(f"./{self.caseDir}/parameters_used.json", 'w')
-        outfile.write(json.dumps(self.data, indent=4)) # Use indent for readability
+        outfile.write(json.dumps(self.data, indent=4))
         outfile.close()
-        print("Setup complete.")
-
-        # self.E_func = project(self.E_expr, self.V)
+        logger.info("Setup complete.")
 
     def adjust_pressure(self, V0):
         """Iteratively adjusts pressure to match target volume inflow."""
-        errV = 1.0 # Initialize with a value > tolerance
+        errV = 1.0
         errV1 = None
         errV2 = None
         Q0 = self.data["Qo"]
         DT = self.data["dt"]
         Vtarget = V0 + DT * Q0
-        pn = float(self.pressure) # Get current pressure value
-        pn1 = pn # Initialize for secant method
+        pn = float(self.pressure)
+        pn1 = pn
         ite = 0
         vol_tol = self.data["tolerances"]["volume"]
-
-        # Use Vtarget for relative tolerance check, avoid division by zero if Vtarget is 0
         check_val = Vtarget if abs(Vtarget) > 1e-15 else 1.0
 
         unew = self.displacement.get()
@@ -108,70 +105,60 @@ class Simulation:
 
         while abs(errV) / abs(check_val) > vol_tol:
             ite += 1
-            # Secant method step
             if errV1 is not None and errV2 is not None and abs(errV1 - errV2) > 1e-12:
                 pn = pn1 - errV1 * (pn1 - pn2) / (errV1 - errV2)
-            else: # Fallback: small perturbation if secant fails or first steps
+            else:
                 pn *= 1.01
 
             self.pressure.assign(pn)
             self.displacement.solve()
             self.history.update(unew)
 
-            VK = compute_fracture_volume(pold, unew) # Use pold here as BCs depend on it
+            VK = compute_fracture_volume(pold, unew)
             errV = Vtarget - VK
 
-            # Update state for next iteration/step
-
-            # Store previous values for secant method
             pn2 = pn1
             errV2 = errV1
             pn1 = pn
             errV1 = errV
 
-            if ite > 20: # Max iterations guard
-                print(f"*** Warning: Adjust pressure reached max iterations ({ite}) with error {abs(errV)/abs(check_val):.2e} > {vol_tol:.2e}")
-                return -1, pn # Indicate failure
+            if ite > 20:
+                logger.warning(f"Adjust pressure reached max iterations ({ite}) with error {abs(errV)/abs(check_val):.2e} > {vol_tol:.2e}")
+                return -1, pn
 
-        # print(f"Adjust pressure converged in {ite} iterations. P = {pn:.4e}, V_err = {errV:.4e}")
+        # logger.info(f"Adjust pressure converged in {ite} iterations. P = {pn:.4e}, V_err = {errV:.4e}")
         return ite, pn
 
     def solve_step(self, V0):
         """Solves one coupled time step using staggered approach."""
-        err_phi = 1.0 # Initialize error > tolerance
+        err_phi = 1.0
         phi_tol = self.data["tolerances"]["phi"]
         outer_ite = 0
 
         while err_phi > phi_tol:
             outer_ite += 1
-            # Adjust pressure and solve displacement
             ite_p, pn = self.adjust_pressure(V0)
 
             if ite_p < 0:
-                print("*** Error: Pressure adjustment failed to converge. Stopping simulation. ***")
-                raise RuntimeError("Pressure adjustment failed.") # Raise exception instead of exit()
+                logger.error("Pressure adjustment failed to converge. Stopping simulation.")
+                raise RuntimeError("Pressure adjustment failed.")
 
-            # Solve phase field
             err_phi = self.phase.solve()
 
-            # Max iterations guard for the outer loop
             if outer_ite > 15:
-                 print(f"*** Warning: Outer loop reached max iterations ({outer_ite}) with phi error {err_phi:.2e} > {phi_tol:.2e}")
-                 # Decide whether to continue or stop
-                 # break # Option: continue with the current state
-                 raise RuntimeError("Outer staggered loop failed to converge.") # Option: stop
+                logger.error(f"Outer loop reached max iterations ({outer_ite}) with phi error {err_phi:.2e} > {phi_tol:.2e}")
+                raise RuntimeError("Outer staggered loop failed to converge.")
 
-        # Update time-dependent functions after step converges
         self.displacement.update()
         self.phase.update()
-        return pn # Return the converged pressure
+        return pn
 
     def run(self):
         """Runs the main simulation loop."""
-        print("\n--- Starting Simulation ---")
+        logger.info("--- Starting Simulation ---")
         total_steps = int(self.data["t_max"] / self.data["dt"])
         start_time = time.time()
-        print(f"Total steps: {total_steps} | Total time: {self.data['t_max']:.4f}")
+        logger.info(f"Total steps: {total_steps} | Total time: {self.data['t_max']:.4f}")
         saved_vtus = 0
         total_vtus = int(total_steps / self.data.get("output_frequency", 10))
         try:
@@ -182,48 +169,34 @@ class Simulation:
                 pnew = self.phase.get()
                 unew = self.displacement.get()
 
-                # Calculate volume at the beginning of the step
                 V0 = compute_fracture_volume(pnew, unew)
-                
-                # Solve the coupled step
                 self.pn = self.solve_step(V0)
-
-                # Calculate volume at the end of the step
                 vol_frac = compute_fracture_volume(pnew, unew)
 
-                # Compute and project stress before writing output
                 stress_expr = (1-pnew)**2 * self.sigma(unew, self.E_expr, self.data.get("nu", 0.3))
                 self.sigt.assign(project(stress_expr, self.Vsig))
 
-                # Write data to CSV
                 self.fname.write(f"{self.t},{self.pn},{vol_frac}\n")
-
 
                 elapsed = time.time() - start_time
                 avg_time = elapsed / self.step
                 remaining_steps = total_steps - self.step
                 remaining_time = remaining_steps * avg_time
                 end_time = datetime.datetime.now() + datetime.timedelta(seconds=remaining_time)
-                
 
-                # Save output files periodically
-                if self.step % self.data.get("output_frequency", 10) == 0: # Use frequency from config or default
+                if self.step % self.data.get("output_frequency", 10) == 0:
                     write_output(self.out_xml, unew, pnew, self.sigt, self.t)
-                    # store_time_series(self.u_ts, self.phi_ts, self.ut, self.phit, self.t)
-                    self.fname.flush() # Ensure CSV data is written to disk
-                    saved_vtus +=1
+                    self.fname.flush()
+                    saved_vtus += 1
                 msg = f"Estimated end: {end_time.strftime('%Y-%m-%d %H:%M:%S')} | Vtks saved: {saved_vtus}/{total_vtus} | Step: {self.step}/{total_steps}"
-                print('\r' + msg + ' '*20, end='')
-                stdout.flush()
-                # Optional: Add convergence checks or other break conditions here
+                logger.info(msg)
 
         except Exception as e:
-            print(f"\n--- Simulation stopped due to error: {e} ---")
+            logger.error(f"Simulation stopped due to error: {e}")
             import traceback
             traceback.print_exc()
         finally:
-            # Cleanup: Close files
-            print("\n--- Simulation Finished ---")
+            logger.info("Simulation Finished.")
             if hasattr(self, 'fname') and self.fname:
                 self.fname.close()
-                print("Closed output CSV file.")
+                logger.info("Closed output CSV file.")

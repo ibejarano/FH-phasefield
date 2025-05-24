@@ -5,6 +5,20 @@ from src.utils import read_data
 from src.simulation_controller import Simulation
 from dolfin import set_log_level, LogLevel
 
+import logging
+
+# Configuración básica de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s]  %(funcName)s: %(message)s",
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("simulation.log"),  # Descomenta para guardar en archivo
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 def actualizar_geo_con_parametros(geo_path, h, h_coarse, H):
     """
@@ -29,18 +43,18 @@ def actualizar_geo_con_parametros(geo_path, h, h_coarse, H):
 
 if __name__ == "__main__":
     if len(argv) < 2:
-        print("Uso: python main.py <archivo_configuracion>")
+        logger.info("Uso: python main.py <archivo_configuracion>")
         exit(1)
 
     config_file = argv[1]
     config_data = read_data(config_file)
     if config_data is None:
-        print(f"Error al leer el archivo de configuración: {config_file}")
+        logger.info(f"Error al leer el archivo de configuración: {config_file}")
         exit(1)
 
     case_name = config_data.get("name", None)
     if case_name is None:
-        print("El archivo de configuración debe contener un campo 'name'.")
+        logger.info("El archivo de configuración debe contener un campo 'name'.")
         exit(1)
 
     caseDir = os.path.join("./results", case_name)
@@ -54,13 +68,13 @@ if __name__ == "__main__":
     if h is not None and h_coarse is not None:
         actualizar_geo_con_parametros(geo_path, h, h_coarse, H)
     else:
-        print("Advertencia: No se encontraron los parámetros 'h' y 'h_coarse' en el archivo de configuración.")
+        logger.warning("Advertencia: No se encontraron los parámetros 'h' y 'h_coarse' en el archivo de configuración.")
 
     # Si el directorio existe, preguntar confirmación
     if os.path.isdir(caseDir):
         confirm = input(f"El directorio '{caseDir}' ya existe. ¿Continuar y sobrescribir? [y/N]: ").lower()
         if confirm != "y":
-            print("Abortando.")
+            logger.info("Abortando.")
             exit(1)
         # Eliminar el directorio si se confirma
         subprocess.run(["rm", "-rf", caseDir])
