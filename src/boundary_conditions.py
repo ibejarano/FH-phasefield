@@ -7,7 +7,9 @@ def create_crack_domain(center, l0, w0):
             return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
     return CrackDomain()
 
-def setup_boundary_conditions(V, W, boundary_markers, data):
+def setup_boundary_conditions(phase, displacement, boundary_markers, data):
+    V = phase.V
+    W = displacement.V
     bcs_u = []
     bcs_phi = []
     bc_config = data.get("boundary_conditions", {}) # Leer config del JSON

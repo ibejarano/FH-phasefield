@@ -1,7 +1,7 @@
-from dolfin import Function, project, conditional, gt
+from dolfin import FunctionSpace, Function, project, conditional, gt
 
 class HistoryField:
-    def __init__(self, V, psi_func, E_expr, nu, data):
+    def __init__(self, mesh, psi_func, E_expr, nu, data):
         """
         V: espacio de funciones
         psi_func: función de energía (por ejemplo, psi_linear)
@@ -9,7 +9,8 @@ class HistoryField:
         nu: coeficiente de Poisson
         data: diccionario de configuración
         """
-        self.field = Function(V)
+        self.V = FunctionSpace(mesh, "DG", 0)
+        self.field = Function(self.V)
         self.psi_func = psi_func
         self.E_expr = E_expr
         self.nu = nu
@@ -20,10 +21,8 @@ class HistoryField:
         Actualiza el campo de historia con el desplazamiento actual u.
         """
         psi_val = self.psi_func(u, self.E_expr, self.nu)
-        # Proyecta psi al espacio de funciones
-        psi_proj = project(psi_val, self.field.function_space())
         # Actualiza el campo de historia: H = max(H, psi)
-        new_H = conditional(gt(psi_proj, self.field), psi_proj, self.field)
+        new_H = conditional(gt(psi_val, self.field), psi_val, self.field)
         self.field.assign(project(new_H, self.field.function_space()))
 
     def get(self):

@@ -1,20 +1,22 @@
-from dolfin import TensorFunctionSpace, Function, TrialFunction, TestFunction, project, FunctionSpace
+from dolfin import TensorFunctionSpace, Function, project
 from dolfin import errornorm
 import json
 import time
 import datetime
 from sys import argv
 from sys import stdout
-import os
 import functools
 
-from mesh_setup import setup_gmsh, setup_rect_mesh, set_function_spaces
+from mesh_setup import setup_gmsh, setup_rect_mesh
 from material_model import epsilon, select_sigma, select_psi, compute_fracture_volume, get_E_expression
 from variational_forms import define_variational_forms
 from solvers import setup_solvers
 from output_utils import create_output_files, write_output, store_time_series
 from boundary_conditions import setup_boundary_conditions
-from history_field import HistoryField
+from fields.history import HistoryField
+from fields.phase import PhaseField
+from fields.displacement import DisplacementField
+
 print = functools.partial(print, flush=True)
 
 class Simulation:
@@ -36,37 +38,41 @@ class Simulation:
         else:
             RuntimeError("config mesh data not recognized")
 
-        self.V, self.W = set_function_spaces(self.mesh)
-        self.WW = FunctionSpace(self.mesh, "DG", 0)
+        #self.V, self.W = set_function_spaces(self.mesh)
         self.Vsig = TensorFunctionSpace(self.mesh, "DG", 0)
         # Trial and Test functions (used in variational forms)
-        self.p, self.q = TrialFunction(self.V), TestFunction(self.V)
-        self.u, self.v = TrialFunction(self.W), TestFunction(self.W)
+        #self.p, self.q = TrialFunction(self.V), TestFunction(self.V)
+        #self.u, self.v = TrialFunction(self.W), TestFunction(self.W)
 
         # Material models
         self.E_expr = get_E_expression(self.data)
         nu = self.data["nu"]
         self.psi = select_psi("linear")
         self.sigma = select_sigma("linear") # Or select based on data if needed
-        
-        self.history = HistoryField(self.WW, self.psi, self.E_expr, nu, self.data)
         print(f"Using energy model: Linear")
 
+        self.history = HistoryField(self.mesh, self.psi, self.E_expr, nu, self.data)
+        self.displacement = DisplacementField(self.mesh)
+        self.phase = PhaseField(self.mesh)
+
         # Boundary Conditions
-        self.bc_u, self.bc_phi = setup_boundary_conditions(self.V, self.W, self.boundary_markers, self.data)
+        self.bc_u, self.bc_phi = setup_boundary_conditions(self.phase, self.displacement, self.boundary_markers, self.data)
 
         # Functions
-        self.unew, self.uold, self.ut = Function(self.W), Function(self.W), Function(self.W, name="displacement")
-        self.pnew, self.pold, self.phit = Function(self.V), Function(self.V), Function(self.V, name="phi")
+        #self.unew, self.uold, self.ut = Function(self.W), Function(self.W), Function(self.W, name="displacement")
+        #self.pnew, self.pold, self.phit = Function(self.V), Function(self.V), Function(self.V, name="phi")
         self.sigt = Function(self.Vsig, name="stress")
 
         # Variational Forms and Solvers
         E_du, E_phi, self.pressure = define_variational_forms(
-            epsilon, self.sigma, self.history.get(), self.pold, self.u,
-            self.v, self.p, self.q, self.data, self.boundary_markers, self.E_expr, nu
+            epsilon, self.sigma, self.history.get(), self.phase, self.displacement,
+            self.data, self.boundary_markers, self.E_expr, nu
         )
 
-        self.solver_disp, self.solver_phi = setup_solvers(E_du, E_phi, self.unew, self.pnew, self.bc_u, self.bc_phi)
+        unew = self.displacement.get()
+        pnew = self.phase.get()
+
+        self.solver_disp, self.solver_phi = setup_solvers(E_du, E_phi, unew, pnew, self.bc_u, self.bc_phi)
         
         self.solver_disp.solve()
         self.solver_phi.solve()
@@ -85,7 +91,7 @@ class Simulation:
         # Initial solve/state setup
         print("Performing initial solve...")
         self.solver_phi.solve()
-        self.pold.assign(self.pnew)
+        self.phase.update()
 
         # Save parameters used
         outfile = open(f"./{self.caseDir}/parameters_used.json", 'w')
@@ -93,11 +99,7 @@ class Simulation:
         outfile.close()
         print("Setup complete.")
 
-        self.E_func = project(self.E_expr, self.V)
-        from dolfin import XDMFFile
-        with XDMFFile(f"./{self.caseDir}/E_regions.xdmf") as xdmf:
-            xdmf.write(self.E_func, 0.0)
-        print(f"Saved E regions to {self.caseDir}/E_regions.xdmf")
+        # self.E_func = project(self.E_expr, self.V)
 
     def adjust_pressure(self, V0):
         """Iteratively adjusts pressure to match target volume inflow."""
@@ -115,6 +117,9 @@ class Simulation:
         # Use Vtarget for relative tolerance check, avoid division by zero if Vtarget is 0
         check_val = Vtarget if abs(Vtarget) > 1e-15 else 1.0
 
+        unew = self.displacement.get()
+        pold = self.phase.get_old()
+
         while abs(errV) / abs(check_val) > vol_tol:
             ite += 1
             # Secant method step
@@ -126,12 +131,12 @@ class Simulation:
             self.pressure.assign(pn)
             self.solver_disp.solve()
 
-            VK = compute_fracture_volume(self.pold, self.unew) # Use pold here as BCs depend on it
+            VK = compute_fracture_volume(pold, unew) # Use pold here as BCs depend on it
             errV = Vtarget - VK
 
             # Update state for next iteration/step
-            self.uold.assign(self.unew)
-            self.history.update(self.unew)
+            self.displacement.update()
+            self.history.update(unew)
 
             # Store previous values for secant method
             pn2 = pn1
@@ -149,8 +154,8 @@ class Simulation:
     def solve_phase_field(self):
         """Solves the phase-field equation and returns the error."""
         self.solver_phi.solve()
-        err_phi = errornorm(self.pnew, self.pold, norm_type='l2', mesh=self.mesh)
-        self.pold.assign(self.pnew)
+        err_phi = self.phase.get_error()
+        self.phase.update()
         return err_phi
 
     def solve_step(self, V0):
@@ -179,8 +184,8 @@ class Simulation:
                  raise RuntimeError("Outer staggered loop failed to converge.") # Option: stop
 
         # Update time-dependent functions after step converges
-        self.ut.assign(self.unew)
-        self.phit.assign(self.pnew)
+        self.displacement.update()
+        self.phase.update()
         return pn # Return the converged pressure
 
     def run(self):
@@ -196,17 +201,20 @@ class Simulation:
                 self.step += 1
                 self.t += self.data["dt"]
 
+                pnew = self.phase.get()
+                unew = self.displacement.get()
+
                 # Calculate volume at the beginning of the step
-                V0 = compute_fracture_volume(self.phit, self.ut)
+                V0 = compute_fracture_volume(pnew, unew)
                 
                 # Solve the coupled step
                 self.pn = self.solve_step(V0)
 
                 # Calculate volume at the end of the step
-                vol_frac = compute_fracture_volume(self.phit, self.ut)
+                vol_frac = compute_fracture_volume(pnew, unew)
 
                 # Compute and project stress before writing output
-                stress_expr = (1-self.phit)**2 * self.sigma(self.ut, self.E_expr, self.data.get("nu", 0.3))
+                stress_expr = (1-pnew)**2 * self.sigma(unew, self.E_expr, self.data.get("nu", 0.3))
                 self.sigt.assign(project(stress_expr, self.Vsig))
 
                 # Write data to CSV
@@ -222,7 +230,7 @@ class Simulation:
 
                 # Save output files periodically
                 if self.step % self.data.get("output_frequency", 10) == 0: # Use frequency from config or default
-                    write_output(self.out_xml, self.ut, self.phit, self.sigt, self.t)
+                    write_output(self.out_xml, unew, pnew, self.sigt, self.t)
                     # store_time_series(self.u_ts, self.phi_ts, self.ut, self.phit, self.t)
                     self.fname.flush() # Ensure CSV data is written to disk
                     saved_vtus +=1

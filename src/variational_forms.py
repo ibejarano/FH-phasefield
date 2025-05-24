@@ -1,6 +1,6 @@
 from dolfin import inner, grad, dx, dot, Measure, Constant
 
-def define_variational_forms(epsilon, sigma_func, H, pold, u, v, p, q, data, boundary_markers, E_expr, nu):
+def define_variational_forms(epsilon, sigma_func, H, phase, displacement, data, boundary_markers, E_expr, nu):
     Gc = data["Gc"]
     l = data["aspect_hl"] * data["h"]
     p_init = data.get("p_init", 100.0)
@@ -9,6 +9,13 @@ def define_variational_forms(epsilon, sigma_func, H, pold, u, v, p, q, data, bou
     pressure = Constant(p_init)
     ds = Measure("ds", subdomain_data=boundary_markers)
     px_vec = Constant((pxx, 0.0))
+
+
+    p = phase.get_trialfunction()
+    q = phase.get_testfunction()
+    u = displacement.get_trialfunction()
+    v = displacement.get_testfunction()
+    pold = phase.get_old()
 
     sigma = sigma_func(u, E_expr, nu)
 
