@@ -20,6 +20,11 @@ def psi_linear(u, E, nu):
     lmbda = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
     return 0.5*(lmbda+mu)*(0.5*(tr(epsilon(u)) + abs(tr(epsilon(u)))))**2 + mu*inner(dev(epsilon(u)), dev(epsilon(u)))
 
+def psi_linear_epsilon(eps, E, nu):
+    mu = E / (2.0 * (1.0 + nu))
+    lmbda = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
+    return 0.5*(lmbda+mu)*(0.5*(tr(eps) + abs(tr(eps))))**2 + mu*inner(dev(eps), dev(eps))
+
 def psi_hyperelastic(u, data):
     mu = data["mu"]
     lmbda = data["lmbda"]
