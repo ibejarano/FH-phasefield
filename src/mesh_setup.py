@@ -1,54 +1,53 @@
-# === Módulo de configuración de malla y espacios funcionales ===
-from dolfin import Mesh, MeshFunction, FunctionSpace, VectorFunctionSpace, Point, RectangleMesh, DOLFIN_EPS, near, SubDomain, File
-import numpy as np # Import numpy
-from os import path
+from dolfinx.mesh import create_mesh, CellType
+from dolfinx.io import gmshio
+from mpi4py import MPI
+import gmsh
+import os
 
-def setup_gmsh(caseDir, data):
-    mesh_file = data["mesh_data"]["file_name"]
-    mesh_path = path.join(caseDir, mesh_file)
-    mesh = Mesh(mesh_path + ".xml")
-    boundary_markers = MeshFunction('size_t', mesh, mesh_path + "_facet_region.xml")
+def setup_gmsh(case_dir, data):
+    mesh_dir = data["mesh_data"]["file_dir"]
+    mesh_name = data["mesh_data"]["file_name"]
+    geo_path = os.path.join(mesh_dir, mesh_name)
+    geo_file = geo_path + ".geo"
 
-    return mesh, boundary_markers
+    msh_path = os.path.join(case_dir, mesh_name)
+    msh_file = msh_path + ".msh"
 
-# === Módulo de configuración de malla y espacios funcionales ===
-def setup_rect_mesh(data):
-    mesh_data = data["mesh_data"]
-    p0 = mesh_data["p0"]
-    p1 = mesh_data["p1"]
-    nelem = mesh_data["nelem"]
-    mesh = RectangleMesh(Point(p0[0], p0[1]), Point(p1[0], p1[1]), nelem[0], nelem[1])
-    boundary_markers = MeshFunction("size_t", mesh, mesh.topology().dim() - 1, 0)
+    # 1. Generar el .msh desde el .geo usando gmsh Python API
+    gmsh.initialize()
+    gmsh.open(geo_file)
+    gmsh.model.mesh.generate(2)  # 2D, usa 3 para 3D
+    gmsh.write(msh_file)
+    gmsh.finalize()
 
-    class BoundaryLeft(SubDomain):
-        def inside(self, x, on_boundary):
-            return on_boundary and near(x[0], p0[0], DOLFIN_EPS)
-
-    class BoundaryRight(SubDomain):
-        def inside(self, x, on_boundary):
-            return on_boundary and near(x[0], p1[0], DOLFIN_EPS)
-
-    class BoundaryBottom(SubDomain):
-        def inside(self, x, on_boundary):
-            return on_boundary and near(x[1], p0[1], DOLFIN_EPS)
-
-    class BoundaryTop(SubDomain):
-        def inside(self, x, on_boundary):
-            return on_boundary and near(x[1], p1[1], DOLFIN_EPS)
-
-    left = BoundaryLeft()
-    right = BoundaryRight()
-    bottom = BoundaryBottom()
-    top = BoundaryTop()
-
-    left.mark(boundary_markers, 30)
-    right.mark(boundary_markers, 10)
-    bottom.mark(boundary_markers, 20)
-    top.mark(boundary_markers, 40)
+    # 2. Leer el .msh con dolfinx
+    mesh, cell_tags, facet_tags = gmshio.read_from_msh(msh_file, MPI.COMM_WORLD, gdim=2)
+    boundary_markers = facet_tags
 
     return mesh, boundary_markers
+
 
 def set_function_spaces(mesh):
-    V = FunctionSpace(mesh, 'CG', 1)
-    W = VectorFunctionSpace(mesh, 'CG', 1)
-    return V, W
+    pass
+    #V = FunctionSpace(mesh, 'CG', 1)
+    #W = VectorFunctionSpace(mesh, 'CG', 1)
+    #return V, W
+
+
+if __name__ == "__main__":
+    # Ejemplo de uso
+    case_dir = "./results/fenicsx_tests"
+    data = {
+        "mesh_data": {
+            "file_dir": "meshes",
+            "file_name": "demo_fenicsx",
+            "p0": [-1, -1],
+            "p1": [1, 1],
+            "nelem": [10, 10]
+        }
+    }
+    
+    mesh, boundary_markers = setup_gmsh(case_dir, data)
+    #V, W = set_function_spaces(mesh)
+    
+    print("Malla y espacios funcionales configurados correctamente.")
