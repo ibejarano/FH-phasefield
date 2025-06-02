@@ -40,10 +40,7 @@ if __name__ == "__main__":
     data = {
         "mesh_data": {
             "file_dir": "meshes",
-            "file_name": "demo_fenicsx",
-            "p0": [-1, -1],
-            "p1": [1, 1],
-            "nelem": [10, 10]
+            "file_name": "demo_fenicsx"
         }
     }
     
