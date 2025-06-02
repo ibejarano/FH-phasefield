@@ -1,4 +1,9 @@
-from dolfin import inv, sym, inner, tr, Identity, det, ln, dev, grad, conditional, gt, assemble, dx, TensorFunctionSpace, Expression
+import ufl
+import numpy as np
+from dolfinx.fem import assemble_scalar, Constant
+from dolfinx.fem import Function
+from ufl import grad, sym, inner, tr, Identity, det, ln, dev, conditional, gt, dx
+
 
 def epsilon(u):
     return sym(grad(u))
@@ -7,7 +12,7 @@ def sigma_hyperelastic(u, mu, lmbda):
     I = Identity(len(u))
     F = I + grad(u)
     J = det(F)
-    F_invT = inv(F).T
+    F_invT = ufl.inv(F).T
     return mu * (F * F.T - I) + lmbda * ln(J) * F_invT
 
 def sigma_linear(u, E, nu):
@@ -56,22 +61,99 @@ def H(Hold, data, psi):
     return conditional(gt(psi, Hold), psi, Hold + delta_H)
 
 def compute_fracture_volume(phi, u):
-    vol_frac = assemble( inner(grad(phi), -u) * dx )
-    return vol_frac
+    v = ufl.TestFunction(phi.function_space)
+    expr = ufl.inner(grad(phi), -u) * v * dx
+    return fem.assemble_scalar(fem.form(expr))
 
 def get_E_expression(data):
+    # Devuelve una expresión UFL para E(x) según regiones
     if "E_regions" in data:
         regions = sorted(data["E_regions"], key=lambda r: r["x_max"])
-        expr = ""
+        expr = None
         prev = None
+        x = ufl.SpatialCoordinate(data["mesh"])
         for i, region in enumerate(regions):
-            if i == 0:
-                expr += f"(x[0]<={region['x_max']})*{region['E']} + "
-            else:
-                prev = regions[i-1]['x_max']
-                expr += f"((x[0]>{prev}) && (x[0]<={region['x_max']}))*{region['E']} + "
-        expr += f"((x[0]>{regions[-1]['x_max']}))*{regions[-1]['E']}"
-
-        return Expression(expr, degree=0)
+            cond = (x[0] <= region['x_max']) if i == 0 else ufl.And(x[0] > prev, x[0] <= region['x_max'])
+            region_expr = ufl.conditional(cond, region['E'], 0.0)
+            expr = region_expr if expr is None else expr + region_expr
+            prev = region['x_max']
+        # Para x > último x_max
+        expr = expr + ufl.conditional(x[0] > regions[-1]['x_max'], regions[-1]['E'], 0.0)
+        return expr
     else:
-        return Expression(str(data["E"]), degree=0)
+        return Constant(data["mesh"], float(data["E"]))
+    
+
+if __name__ == "__main__":
+    # Ejemplo de uso
+    from dolfinx import mesh, fem
+    from mpi4py import MPI
+    
+    from mesh_setup import setup_gmsh
+    from basix.ufl import element
+
+    # Crear una malla de ejemplo
+    domain, boundary_markers = setup_gmsh(
+        case_dir="./results/fenicsx_tests",
+        data = {
+        "mesh_data": {
+            "file_dir": "meshes",
+            "file_name": "demo_fenicsx"
+        }
+    }
+    )
+
+    u_cg2 = element("CG", domain.topology.cell_name(), 2, shape=(domain.geometry.dim, ))
+    phi_cg1 = element("CG", domain.topology.cell_name(), 1)
+
+    V = fem.functionspace(domain, phi_cg1)
+    W = fem.functionspace(domain, u_cg2)
+
+    # Crear un campo de desplazamiento ficticio
+    u = fem.Function(W)
+    u.interpolate(lambda x: np.vstack((0.1 * x[0], 0.2 * x[1])))
+
+    # Crear un campo de fase ficticio
+    phi = fem.Function(V)
+    phi.interpolate(lambda x: 0.5 + 0.5 * x[0])
+    vol = compute_fracture_volume(phi, u)
+
+    # Datos de ejemplo
+    data = {
+        "boundary_conditions": {
+        "displacement": {
+            "20": {"value": [0.0, 0.0]}
+        },
+        "initial_crack" : {
+            "center": [0.0, 0.0],
+            "l0": 0.0075,
+            "w0": 0.5e-3
+        }
+    },
+        "linit": 0.1,
+        "h": 0.05
+    }
+
+        # Probar compute_fracture_volume
+    vol = compute_fracture_volume(phi, u)
+    if domain.comm.rank == 0:
+        print(f"Volumen de fractura (ficticio): {vol:.6e}")
+
+
+        msh = mesh.create_unit_square(MPI.COMM_WORLD, 8, 8)
+    V = fem.functionspace(domain, phi_cg1)
+    W = fem.functionspace(domain, u_cg2)
+
+    # Crear un campo de desplazamiento ficticio
+    u = fem.Function(W)
+    u.interpolate(lambda x: np.vstack((0.1 * x[0], 0.2 * x[1])))
+
+    # Crear un campo de fase ficticio
+    phi = fem.Function(V)
+    phi.interpolate(lambda x: 0.5 + 0.5 * x[0])
+
+    # Probar compute_fracture_volume
+    vol = compute_fracture_volume(phi, u)
+    if msh.comm.rank == 0:
+        print(f"Volumen de fractura (ficticio): {vol:.6e}")
+
