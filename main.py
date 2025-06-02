@@ -102,4 +102,7 @@ if __name__ == "__main__":
 
     # Leer configuración y ejecutar simulación
     simulation = Simulation(config_data)
+    for handler in logger.handlers:
+        if hasattr(handler, 'flush'):
+            handler.flush()
     simulation.run()

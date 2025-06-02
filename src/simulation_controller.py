@@ -3,8 +3,7 @@ from dolfin import TensorFunctionSpace, Function, project
 import json
 import time
 import datetime
-from sys import stdout
-import functools
+import numpy as np
 
 from mesh_setup import setup_gmsh, setup_rect_mesh
 from material_model import epsilon, select_sigma, select_psi, compute_fracture_volume, get_E_expression
@@ -14,6 +13,7 @@ from boundary_conditions import setup_boundary_conditions
 from fields.history import HistoryField
 from fields.phase import PhaseField
 from fields.displacement import DisplacementField
+from utils import fracture_length
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ class Simulation:
         self.data = data
         self.caseDir = data.get("caseDir", "results")
         self.p_init = data.get("p_init", 100)
+        self.pn_old = self.p_init
         self.setup()
 
     def setup(self):
@@ -86,57 +87,74 @@ class Simulation:
         outfile.close()
         logger.info("Setup complete.")
 
+        # Adaptive time step parameters
+        self.dt = self.data["dt"]
+        self.dt_min = self.data.get("dt_min", 1e-5)
+        self.dt_max = self.data.get("dt_max", 1e-2)
+        self.dt_growth = self.data.get("dt_growth", 1.2)
+        self.dt_shrink = self.data.get("dt_shrink", 0.5)
+
     def adjust_pressure(self, V0):
         """Iteratively adjusts pressure to match target volume inflow."""
-        errV = 1.0
-        errV1 = None
-        errV2 = None
         Q0 = self.data["Qo"]
-        DT = self.data["dt"]
-        Vtarget = V0 + DT * Q0
-        pn = float(self.pressure)
-        pn1 = pn
-        ite = 0
+        Vtarget = V0 + self.dt * Q0
         vol_tol = self.data["tolerances"]["volume"]
         check_val = Vtarget if abs(Vtarget) > 1e-15 else 1.0
 
-        unew = self.displacement.get()
-        pold = self.phase.get_old()
+        pn = float(self.pressure)
+        prevs = []  # Guarda (pn, VK) para método secante
+        ite = 0
+        max_ite = 20
 
-        while abs(errV) / abs(check_val) > vol_tol:
+        pold = self.phase.get_old()
+        errV = 1.0
+
+        while True:
             ite += 1
-            if errV1 is not None and errV2 is not None and abs(errV1 - errV2) > 1e-12:
-                pn = pn1 - errV1 * (pn1 - pn2) / (errV1 - errV2)
-            else:
-                pn *= 1.01
 
             self.pressure.assign(pn)
             self.displacement.solve()
+            unew = self.displacement.get()
             self.history.update(unew)
 
             VK = compute_fracture_volume(pold, unew)
             errV = Vtarget - VK
+            #logger.info(f"Iteration {ite}: Pressure={pn:.4f}, Volume={VK:.6e}, Target={Vtarget:.6e}, Error={(errV/Vtarget):.2e}")
 
-            pn2 = pn1
-            errV2 = errV1
-            pn1 = pn
-            errV1 = errV
+            prevs.append((pn, VK))
+            if len(prevs) > 2:
+                prevs.pop(0)
 
-            if ite > 20:
+            # Chequeo de convergencia
+            if abs(errV) / abs(check_val) < vol_tol:
+                break
+
+            # Método secante si hay dos valores previos y diferencia de volumen suficiente
+            if len(prevs) == 2 and abs(prevs[1][1] - prevs[0][1]) > 1e-12:
+                # Interpolación lineal para encontrar presión que da Vtarget
+                pn = prevs[1][0] + (Vtarget - prevs[1][1]) * (prevs[1][0] - prevs[0][0]) / (prevs[1][1] - prevs[0][1])
+            else:
+                pn *= 1.01  # Incremento simple si no hay suficiente info
+
+            # Opcional: evita presión negativa
+            pn = max(pn, 0.0)
+
+            if ite > max_ite:
                 logger.warning(f"Adjust pressure reached max iterations ({ite}) with error {abs(errV)/abs(check_val):.2e} > {vol_tol:.2e}")
                 return -1, pn
 
-        # logger.info(f"Adjust pressure converged in {ite} iterations. P = {pn:.4e}, V_err = {errV:.4e}")
         return ite, pn
 
-    def solve_step(self, V0):
+    def solve_step(self):
         """Solves one coupled time step using staggered approach."""
         err_phi = 1.0
         phi_tol = self.data["tolerances"]["phi"]
         outer_ite = 0
+        V0 = compute_fracture_volume(self.phase.get_old(), self.displacement.get())
 
         while err_phi > phi_tol:
             outer_ite += 1
+
             ite_p, pn = self.adjust_pressure(V0)
 
             if ite_p < 0:
@@ -156,40 +174,70 @@ class Simulation:
     def run(self):
         """Runs the main simulation loop."""
         logger.info("--- Starting Simulation ---")
-        total_steps = int(self.data["t_max"] / self.data["dt"])
         start_time = time.time()
-        logger.info(f"Total steps: {total_steps} | Total time: {self.data['t_max']:.4f}")
         saved_vtus = 0
-        total_vtus = int(total_steps / self.data.get("output_frequency", 10))
+        final_length = self.data.get("l_max", 0.0)
+        progress = 0
         try:
-            while self.t <= self.data["t_max"]:
+            while self.t <= self.data["t_max"] and progress < 0.95:
                 self.step += 1
-                self.t += self.data["dt"]
+                self.t += self.dt
 
+                # Guardar phi anterior para dt adaptativo
+                self.pn = self.solve_step()
+                
                 pnew = self.phase.get()
                 unew = self.displacement.get()
 
-                V0 = compute_fracture_volume(pnew, unew)
-                self.pn = self.solve_step(V0)
                 vol_frac = compute_fracture_volume(pnew, unew)
 
                 stress_expr = (1-pnew)**2 * self.sigma(unew, self.E_expr, self.data.get("nu", 0.3))
                 self.sigt.assign(project(stress_expr, self.Vsig))
+                fracture_length_value = fracture_length(pnew)
+                self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value}\n")
 
-                self.fname.write(f"{self.t},{self.pn},{vol_frac}\n")
+                pn_new = self.pn
+                # Cambio relativo de presión
+                delta_p = abs(pn_new - self.pn_old) / max(abs(self.pn_old), 1e-8)
 
-                elapsed = time.time() - start_time
-                avg_time = elapsed / self.step
-                remaining_steps = total_steps - self.step
-                remaining_time = remaining_steps * avg_time
-                end_time = datetime.datetime.now() + datetime.timedelta(seconds=remaining_time)
+                # Adaptar dt según cambio de presión
+                if delta_p > self.data.get("pressure_tol_adapt", 0.01) and self.dt > self.dt_min:
+                    self.dt = max(self.dt * self.dt_shrink, self.dt_min)
+                    logger.info(f"Decreasing dt to {self.dt:.2e} (pressure drop: {delta_p:.2e})")
+                elif delta_p < self.data.get("pressure_tol_adapt", 0.005) and self.dt < self.dt_max:
+                    self.dt = min(self.dt * self.dt_growth, self.dt_max)
+                    logger.info(f"Increasing dt to {self.dt:.2e} (pressure stable: {delta_p:.2e})")
+
+                self.pn_old = pn_new
 
                 if self.step % self.data.get("output_frequency", 10) == 0:
                     write_output(self.out_xml, unew, pnew, self.sigt, self.t)
                     self.fname.flush()
                     saved_vtus += 1
-                msg = f"Estimated end: {end_time.strftime('%Y-%m-%d %H:%M:%S')} | Vtks saved: {saved_vtus}/{total_vtus} | Step: {self.step}/{total_steps}"
-                logger.info(msg)
+
+                if final_length > 0:
+                    progress = min(fracture_length_value / final_length, 1.0)
+
+                    # Estimar tiempo restante usando el avance de la fractura
+                    if progress > 0:
+                        elapsed = time.time() - start_time
+                        estimated_total_time = elapsed / progress
+                        remaining_time = estimated_total_time - elapsed
+                        end_time = datetime.datetime.now() + datetime.timedelta(seconds=remaining_time)
+                        msg = (
+                            f"Estimated : {end_time.strftime('%Y-%m-%d %H:%M:%S')} | "
+                            f"Fracture progress: {progress*100:.1f}% | "
+                            f"Time: {self.t:.2e} s | "
+                            f"Step/VTUS: {self.step}/{saved_vtus} | "
+                            f" | dt: {self.dt:.2e} | "
+                            f"delta p: {delta_p:.4e} | "
+                        )
+                        logger.info(msg)
+                    else:
+                        logger.info("Waiting for fracture to start growing to estimate end time.")
+                else:
+                    logger.info(f"Fracture length: {fracture_length_value:.4f}")
+
 
         except Exception as e:
             logger.error(f"Simulation stopped due to error: {e}")

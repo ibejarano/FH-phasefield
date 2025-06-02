@@ -1,8 +1,8 @@
 #!/bin/bash
 # --- Configuración ---
 REMOTE_USER="ignacio"
-REMOTE_HOST="192.168.0.13"
-REMOTE_PROJECT_DIR="simulaciones/FH-phasefield"
+REMOTE_HOST="192.168.0.14"
+REMOTE_PROJECT_DIR="repos/FH-phasefield"
 LOCAL_PROJECT_DIR="." # Directorio actual
 RSYNC_OPTS="-avz --delete --exclude results/ --exclude __pycache__/ --exclude *.ipynb --exclude *.csv"
 PYTHON_SCRIPT_NAME="main.py"
@@ -47,7 +47,7 @@ rsync -avz --exclude '*.h5' --exclude '*.xdmf' "${REMOTE_USER}@${REMOTE_HOST}:${
 if [ $? -eq 0 ]; then
   echo "Simulación ejecutada exitosamente en el servidor remoto."
   echo "Copiando archivos de resultados desde el servidor (excluyendo .h5 y .xdmf)..."
-  rsync -avz --exclude '*.h5' --exclude '*.xdmf' "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_RESULTS_DIR}/" "${LOCAL_RESULTS_DIR}/"
+  rsync -avz --exclude '*.h5' --exclude '*.xdmf'  --exclude '*.xml' "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_RESULTS_DIR}/" "${LOCAL_RESULTS_DIR}/"
 else
   echo "Error durante la ejecución remota."
   exit 1

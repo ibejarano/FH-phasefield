@@ -1,20 +1,20 @@
 // Mesh.Algorithm = 6; 
-gridsize = 4e-1;
-ref_gridsize = 1e-3;
-L = 4;
-H_sup = 0.20;
-H_inf = 2;
-dx = 0.15;
+gridsize = 0.8;
+ref_gridsize = 0.001;
+L = 20;
+H_sup = 0.9;
+H_inf = 10;
+dx = 0.25;
 y_crack = -0.01;
-dy_crack = 0.04 - y_crack;
-ref_gridsize2 = ref_gridsize*(H_sup/0.005);
+dy_crack = 0.01 - y_crack;
+refb_gridsize = 0.8;
 //
 Point(1) = { -L/2 , H_sup   ,0.0, gridsize};
 Point(2) = { -L/2 , -H_inf  ,0.0, gridsize};
 Point(3) = {  L/2 , -H_inf  ,0.0, gridsize};
 Point(4) = {  L/2 , H_sup  ,0.0,  gridsize};
-Point(5) = {  dx , H_sup  ,0.0, ref_gridsize2};
-Point(6) = {  -dx , H_sup  ,0.0,  ref_gridsize2};
+Point(5) = {  dx , H_sup  ,0.0, refb_gridsize};
+Point(6) = {  -dx , H_sup  ,0.0,  refb_gridsize};
 // cuadrado donde estará la fractura
 Point(11) = { -dx , y_crack, 0.0, ref_gridsize};
 Point(12) = {  dx , y_crack, 0.0, ref_gridsize};

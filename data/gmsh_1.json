@@ -1,19 +1,25 @@
 {
-    "name": "gmsh_1",
+    "name": "run_h_fine",
     "description": "GMSH mesh case", 
     "E": 2e8,
     "nu": 0.3,
     "Gc": 2.7,
     "Qo": 2e-3,
     "aspect_hl": 3,
-    "h": 1e-3,
+    "h": 0.5e-3,
     "h_coarse": 8e-1,
     "px": 0,
     "psi_model": "linear",
-    "delta_H": 0.02,
+    "delta_H": 0.00,
     "dt": 1e-5,
-    "t_max": 0.006,
-    "H": 0.5,
+    "dt_min": 1e-5,
+    "dt_max": 1e-2,
+    "pressure_tol_adapt": 0.01,
+    "dt_shrink": 1.0,
+    "dt_growth": 1.0,
+    "t_max": 100,
+    "l_max": 1.2,
+    "H": 1.3,
     "mesh_data": {
         "type": "gmsh",
         "file_name": "curving_H"
@@ -24,14 +30,13 @@
     },
     "boundary_conditions": {
         "displacement": {
-            "20": {"value": [0.0, 0.0]},
-            "40": {"value": [0.0, 0.0]}
+            "20": {"value": [0.0, 0.0]}
         },
         "initial_crack" : {
             "center": [0.0, 0.0],
             "l0": 0.0075,
-            "w0": 1e-3
+            "w0": 0.5e-3
         }
     },
-    "output_frequency": 10
+    "output_frequency": 100
 }
