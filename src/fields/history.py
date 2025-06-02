@@ -1,4 +1,8 @@
-from dolfin import FunctionSpace, Function, project, conditional, gt
+#from dolfin import FunctionSpace, Function, project, conditional, gt
+import ufl
+import numpy as np
+from dolfinx import fem
+from basix.ufl import element
 
 class HistoryField:
     def __init__(self, mesh, psi_func, E_expr, nu, data):
@@ -9,8 +13,9 @@ class HistoryField:
         nu: coeficiente de Poisson
         data: diccionario de configuración
         """
-        self.V = FunctionSpace(mesh, "DG", 0)
-        self.field = Function(self.V)
+        element_type = element("DG", mesh.topology.cell_name(), 0, shape=(1, ))
+        self.V = fem.functionspace(mesh, element_type)
+        self.field = fem.Function(self.V)
         self.psi_func = psi_func
         self.E_expr = E_expr
         self.nu = nu
@@ -22,8 +27,8 @@ class HistoryField:
         """
         psi_val = self.psi_func(u, self.E_expr, self.nu)
         # Actualiza el campo de historia: H = max(H, psi)
-        new_H = conditional(gt(psi_val, self.field), psi_val, self.field)
-        self.field.assign(project(new_H, self.field.function_space()))
+        new_H_expr = ufl.conditional(ufl.gt(psi_val, self.field), psi_val, self.field)
+        self.field.interpolate(fem.Expression(new_H_expr, self.V.element.interpolation_points()))
 
     def get(self):
         """
