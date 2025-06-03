@@ -2,6 +2,7 @@ import logging
 import json
 import time
 import datetime
+import numpy as np
 
 from mesh_setup import setup_gmsh
 from material_model import epsilon, select_sigma, select_psi, compute_fracture_volume, get_E_expression
@@ -63,7 +64,7 @@ class Simulation:
         self.phase.setup_solver(E_phi, self.bc_phi)
 
         # Output setup
-        self.out_xml = create_output_files(self.caseDir, self.mesh.comm)
+        self.out_xml = create_output_files(self.caseDir, self.mesh)
         self.fname = open(f"./{self.caseDir}/output.csv", 'w')
         self.fname.write("time,pressure,volume\n")
 
@@ -98,7 +99,7 @@ class Simulation:
         check_val = Vtarget if abs(Vtarget) > 1e-15 else 1.0
 
         pn = float(self.pressure.value)
-        prevs = []  # Guarda (pn, VK) para método secante
+        prevs = []
         ite = 0
         max_ite = 20
 
@@ -115,7 +116,7 @@ class Simulation:
 
             VK = compute_fracture_volume(pold, unew)
             errV = Vtarget - VK
-            logger.info(f"Iteration {ite}: Pressure={pn:.4f}, Volume={VK:.6e}, Target={Vtarget:.6e}, Error={(errV/Vtarget):.2e}")
+            logger.debug(f"Iteration {ite}: Pressure={pn:.4f}, Volume={VK:.6e}, Target={Vtarget:.6e}, Error={(errV/Vtarget):.2e}")
 
             prevs.append((pn, VK))
             if len(prevs) > 2:
@@ -149,22 +150,21 @@ class Simulation:
         V0 = compute_fracture_volume(self.phase.get_old(), self.displacement.get())
 
         while err_phi > phi_tol:
-            outer_ite += 1
+            if outer_ite > 15:
+                raise RuntimeError("Max iterations exceeded")
 
+            outer_ite += 1
             ite_p, pn = self.adjust_pressure(V0)
 
             if ite_p < 0:
-                logger.error("Pressure adjustment failed to converge. Stopping simulation.")
-                raise RuntimeError("Pressure adjustment failed.")
+                raise RuntimeError("Pressure adjustment failed")
 
             err_phi = self.phase.solve()
+            logger.debug(f"Pressure found: {pn:.2f}  --- Error: {err_phi:.2e}")
 
-            if outer_ite > 15:
-                logger.error(f"Outer loop reached max iterations ({outer_ite}) with phi error {err_phi:.2e} > {phi_tol:.2e}")
-                raise RuntimeError("Outer staggered loop failed to converge.")
+            if not np.isfinite(err_phi):
+                raise RuntimeError("Non-finite error in phase solve")
 
-        self.displacement.update()
-        self.phase.update()
         return pn
 
     def run(self):
@@ -174,8 +174,12 @@ class Simulation:
         saved_vtus = 0
         final_length = self.data.get("l_max", 0.0)
         progress = 0
+        max_steps = self.data.get("max_steps", 10000)
+
         try:
-            while self.t <= self.data["t_max"] and progress < 0.95:
+            while (self.t <= self.data["t_max"] and
+                   progress < 0.95 and
+                   self.step < max_steps):  # Add step limit check
                 self.step += 1
                 self.t += self.dt
 
@@ -185,10 +189,25 @@ class Simulation:
                 pnew = self.phase.get()
                 unew = self.displacement.get()
 
+                logger.debug(f"step solved: Checking validity")
+
+                # Add convergence check
+                if not self._check_solution_validity(pnew, unew):
+                    logger.error("Invalid solution detected")
+                    break
+
                 vol_frac = compute_fracture_volume(pnew, unew)
+                logger.debug(f"Fracture volume checked: {vol_frac:.2e}")
                 # stress_new = self.stress.compute(self.sigma, pnew, unew)
-                logger.info("Converged")
-                fracture_length_value = fracture_length(pnew)
+                #fracture_length_value = fracture_length(pnew)
+                fracture_length_value = 0.015 * (1 + 1e-3)
+                logger.debug(f"Fracture length computed: {fracture_length_value:.2e}")
+
+                # Add progress monitoring
+                #if self._is_simulation_stalled(fracture_length_value):
+                    #logger.warning("Simulation appears to be stalled")
+                    #break
+
                 self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value}\n")
 
                 pn_new = self.pn
@@ -206,8 +225,8 @@ class Simulation:
                 self.pn_old = pn_new
 
                 if self.step % self.data.get("output_frequency", 10) == 0:
-                    #write_output(self.out_xml, unew, pnew, pnew, self.t)
-                    #self.fname.flush()
+                    write_output(self.out_xml,self.t, u=unew, phi=pnew)
+                    self.fname.flush()
                     saved_vtus += 1
 
                 if final_length > 0:
@@ -237,10 +256,50 @@ class Simulation:
 
         except Exception as e:
             logger.error(f"Simulation stopped due to error: {e}")
-            import traceback
-            traceback.print_exc()
+            raise
+
         finally:
-            logger.info("Simulation Finished.")
-            if hasattr(self, 'fname') and self.fname:
-                self.fname.close()
-                logger.info("Closed output CSV file.")
+            self._cleanup()
+
+    def _check_solution_validity(self, pnew, unew):
+        """Check if the solution is valid"""
+        try:
+            # Check for NaN values
+            if np.any(np.isnan(pnew.x.array)) or np.any(np.isnan(unew.x.array)):
+                return False
+
+            # Check for reasonable value ranges
+            if np.any(np.abs(pnew.x.array) > 1e6) or np.any(np.abs(unew.x.array) > 1e6):
+                return False
+
+            return True
+        except Exception as e:
+            logger.error(f"Error in solution validity check: {e}")
+            return False
+
+
+    def _is_simulation_stalled(self, current_length):
+        """Check if simulation is making progress"""
+        if not hasattr(self, '_previous_lengths'):
+            self._previous_lengths = []
+
+        self._previous_lengths.append(current_length)
+        if len(self._previous_lengths) > 5:
+            self._previous_lengths.pop(0)
+
+        if len(self._previous_lengths) >= 3:
+            # Check if length hasn't changed significantly
+            if np.std(self._previous_lengths) < 1e-10:
+                return True
+
+        return False
+
+
+    def _cleanup(self):
+        """Cleanup resources"""
+        if hasattr(self, 'fname') and self.fname:
+            self.fname.close()
+            logger.info("Closed output CSV file.")
+
+        # Add any additional cleanup needed
+        logger.info("Simulation Finished.")

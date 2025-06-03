@@ -1,8 +1,10 @@
-#from dolfin import Function, FunctionSpace, TrialFunction, TestFunction, errornorm
 import ufl
+import logging
 from dolfinx import fem
 from basix.ufl import element
 from dolfinx.fem.petsc import LinearProblem
+
+logger = logging.getLogger(__name__)
 
 class PhaseField:
     def __init__(self, mesh, V=None):
@@ -41,18 +43,33 @@ class PhaseField:
         """
         Configura el Solver para el campo de fase.
         """
-        a = fem.form(ufl.lhs(E_phi))
-        L = fem.form(ufl.rhs(E_phi))
-        print("BCs phi:", bc_phi)
-        self.problem = LinearProblem(a, L, bc_phi, self.new,
-                                 petsc_options={"ksp_type": "gmres", "pc_type": "ilu"}
-                                 )
+        try:
+            a = fem.form(ufl.lhs(E_phi))
+            L = fem.form(ufl.rhs(E_phi))
+            problem = LinearProblem(a, L, bc_phi, self.new,
+                                    petsc_options={
+                                        "ksp_type": "gmres",
+                                        "pc_type": "hypre",
+                                        "pc_hypre_type": "boomeramg",
+                                        "ksp_rtol": 1e-8,
+                                        "ksp_max_it": 1000
+                                    })
+
+            self.problem = problem
+            logger.info("Phase field solver setup completed successfully")
+
+        except Exception as e:
+            logger.error(f"Error in phase field solver setup: {e}")
+            raise
 
     def solve(self):
         """
         Resuelve el problema de campo de fase.
         """
         self.problem.solve()
+        logger.debug("Phi solved")
         error = self.get_error()
+        logger.debug(f"Error get {error:.2e}")
         self.update()
+        logger.debug("Phi Updated")
         return error

@@ -34,7 +34,6 @@ class DisplacementField:
         """
         a = fem.form(ufl.lhs(E_du))
         L = fem.form(ufl.rhs(E_du))
-        print("BCs displacement:", bc_u)
         problem = LinearProblem(a, L, bc_u, self.new,
                                 petsc_options={"ksp_type": "gmres", "pc_type": "ilu"}
                                 )

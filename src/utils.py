@@ -32,3 +32,24 @@ def fracture_length(phi, x1=-1, x2=1, y=0.0, npoints=5000, cutoff=0.6):
     mask = phi_vals > cutoff
     length = np.sum(mask) * dx
     return length
+
+def update_geo(geo_path, h, h_coarse, H):
+    """
+    replace in geo the values with h, h_coarse (element sizes) and H
+    """
+    with open(geo_path, "r") as f:
+        lines = f.readlines()
+
+    new_lines = []
+    for line in lines:
+        if line.strip().startswith("gridsize"):
+            new_lines.append(f"gridsize = {h_coarse};\n")
+        elif line.strip().startswith("ref_gridsize"):
+            new_lines.append(f"ref_gridsize = {h};\n")
+        elif line.strip().startswith("H_sup"):
+            new_lines.append(f"H_sup = {H};\n")
+        else:
+            new_lines.append(line)
+
+    with open(geo_path, "w") as f:
+        f.writelines(new_lines)

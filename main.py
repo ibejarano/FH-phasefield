@@ -3,10 +3,11 @@ import os
 import subprocess
 from src.utils import read_from_json
 from src.simulation_controller import Simulation
+from src.utils import update_geo
 
 import logging
 
-# Configuración básica de logging
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s]  %(funcName)s: %(message)s",
@@ -18,27 +19,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-def actualizar_geo_con_parametros(geo_path, h, h_coarse, H):
-    """
-    Reemplaza los valores de gridsize y ref_gridsize en el archivo .geo.
-    """
-    with open(geo_path, "r") as f:
-        lines = f.readlines()
-
-    nuevas_lineas = []
-    for line in lines:
-        if line.strip().startswith("gridsize"):
-            nuevas_lineas.append(f"gridsize = {h_coarse};\n")
-        elif line.strip().startswith("ref_gridsize"):
-            nuevas_lineas.append(f"ref_gridsize = {h};\n")
-        elif line.strip().startswith("H_sup"):
-            nuevas_lineas.append(f"H_sup = {H};\n")
-        else:
-            nuevas_lineas.append(line)
-
-    with open(geo_path, "w") as f:
-        f.writelines(nuevas_lineas)
 
 if __name__ == "__main__":
     if len(argv) < 2:
@@ -65,7 +45,7 @@ if __name__ == "__main__":
     h_coarse = config_data.get("h_coarse", None)
     H = config_data.get("H", None)
     if h is not None and h_coarse is not None:
-        actualizar_geo_con_parametros(geo_path, h, h_coarse, H)
+        update_geo(geo_path, h, h_coarse, H)
     else:
         logger.warning("Advertencia: No se encontraron los parámetros 'h' y 'h_coarse' en el archivo de configuración.")
 
