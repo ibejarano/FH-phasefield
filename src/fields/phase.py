@@ -11,7 +11,7 @@ class PhaseField:
         self.mesh = mesh
         if V is None:
             # Si no se proporciona un espacio de funciones, se crea uno por defecto
-            phi_cg1 = element("CG", mesh.topology.cell_name(), 1)
+            phi_cg1 = element("Lagrange", mesh.topology.cell_name(), 1)
             self.V = fem.functionspace(mesh, phi_cg1)
         else:
             self.V = V

@@ -26,8 +26,6 @@ def write_output(vtx_writer, t, phi=None, u=None, stress=None):
         if stress is not None:
             vtx_writer.write_function(stress, t)
 
-        vtx_writer.flush()  # Make sure data is written to disk
-
     except Exception as e:
         logger.error(f"Error writing output: {e}")
 

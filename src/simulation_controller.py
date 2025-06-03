@@ -232,7 +232,6 @@ class Simulation:
                 if final_length > 0:
                     progress = min(fracture_length_value / final_length, 1.0)
 
-                    logger.info("Converged") 
                     # Estimar tiempo restante usando el avance de la fractura
                     if progress > 0:
                         elapsed = time.time() - start_time

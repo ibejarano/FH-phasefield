@@ -10,7 +10,7 @@ class DisplacementField:
     def __init__(self, mesh, V=None):
         if V is None:
             # Si no se proporciona un espacio de funciones, se crea uno por defecto
-            u_cg2 = element("CG", mesh.topology.cell_name(), 2, shape=(mesh.geometry.dim, ))
+            u_cg2 = element("Lagrange", mesh.topology.cell_name(), 2, shape=(mesh.geometry.dim, ))
             self.V = fem.functionspace(mesh, u_cg2)
         self.new = fem.Function(self.V, name="displacement")
         self.old = fem.Function(self.V)
