@@ -13,7 +13,7 @@ class HistoryField:
         nu: coeficiente de Poisson
         data: diccionario de configuración
         """
-        element_type = element("DG", mesh.topology.cell_name(), 0, shape=(1, ))
+        element_type = element("DG", mesh.topology.cell_name(), 0)
         self.V = fem.functionspace(mesh, element_type)
         self.field = fem.Function(self.V)
         self.psi_func = psi_func

@@ -1,5 +1,5 @@
 #from dolfin import File, TimeSeries, XDMFFile
-from dolfin.io import XDMFFile, TimeSeries
+from dolfinx.io import XDMFFile
 
 def create_output_files(case_dir, comm):
     xdmf = XDMFFile(comm, f"{case_dir}/output.xdmf", "w")

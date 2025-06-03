@@ -9,7 +9,7 @@ class PhaseField:
         self.mesh = mesh
         if V is None:
             # Si no se proporciona un espacio de funciones, se crea uno por defecto
-            phi_cg1 = element("CG", mesh.topology.cell_name(), 1, shape=(1, ))
+            phi_cg1 = element("CG", mesh.topology.cell_name(), 1)
             self.V = fem.functionspace(mesh, phi_cg1)
         else:
             self.V = V
@@ -41,7 +41,10 @@ class PhaseField:
         """
         Configura el Solver para el campo de fase.
         """
-        self.problem = LinearProblem(E_phi, self.new, bcs=bc_phi,
+        a = fem.form(ufl.lhs(E_phi))
+        L = fem.form(ufl.rhs(E_phi))
+        print("BCs phi:", bc_phi)
+        self.problem = LinearProblem(a, L, bc_phi, self.new,
                                  petsc_options={"ksp_type": "gmres", "pc_type": "ilu"}
                                  )
 

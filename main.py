@@ -1,9 +1,8 @@
 from sys import argv
 import os
 import subprocess
-from src.utils import read_data
+from src.utils import read_from_json
 from src.simulation_controller import Simulation
-from dolfin import set_log_level, LogLevel
 
 import logging
 
@@ -47,7 +46,7 @@ if __name__ == "__main__":
         exit(1)
 
     config_file = argv[1]
-    config_data = read_data(config_file)
+    config_data = read_from_json(config_file)
     if config_data is None:
         logger.info(f"Error al leer el archivo de configuración: {config_file}")
         exit(1)
@@ -80,25 +79,6 @@ if __name__ == "__main__":
         subprocess.run(["rm", "-rf", caseDir])
 
     os.makedirs(caseDir, exist_ok=True)
-
-    # Generar la malla con GMSH
-    gmsh_cmd = [
-        "gmsh", "-2", "-format", "msh2",
-        f"meshes/{mesh_name}.geo",
-        "-o", f"{caseDir}/{mesh_name}.msh", "-v", "0"
-    ]
-    subprocess.run(gmsh_cmd, check=True)
-
-    # Convertir la malla a XML con dolfin-convert
-    dolfin_cmd = [
-        "dolfin-convert",
-        f"{caseDir}/{mesh_name}.msh",
-        f"{caseDir}/{mesh_name}.xml"
-    ]
-    subprocess.run(dolfin_cmd, check=True)
-
-    # Set FEniCS log level
-    set_log_level(LogLevel.ERROR)
 
     # Leer configuración y ejecutar simulación
     simulation = Simulation(config_data)

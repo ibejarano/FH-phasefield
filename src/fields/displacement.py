@@ -32,7 +32,10 @@ class DisplacementField:
         """
         Configura el Solver para el campo de desplazamiento.
         """
-        problem = LinearProblem(E_du, self.new, bcs=bc_u,
+        a = fem.form(ufl.lhs(E_du))
+        L = fem.form(ufl.rhs(E_du))
+        print("BCs displacement:", bc_u)
+        problem = LinearProblem(a, L, bc_u, self.new,
                                 petsc_options={"ksp_type": "gmres", "pc_type": "ilu"}
                                 )
         self.problem = problem

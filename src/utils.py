@@ -1,5 +1,18 @@
 import numpy as np
 
+def read_from_json(file_path):
+    """
+    Lee un archivo JSON y devuelve su contenido.
+    Args:
+        file_path: Ruta al archivo JSON.
+    Returns:
+        dict: Contenido del archivo JSON.
+    """
+    import json
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+    return data
+
 def fracture_length(phi, x1=-1, x2=1, y=0.0, npoints=5000, cutoff=0.6):
     """
     Aproxima el largo de la fractura evaluando phi sobre la línea y sumando los tramos donde phi < cutoff.

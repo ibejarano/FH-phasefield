@@ -1,7 +1,7 @@
 import ufl
 import numpy as np
-from dolfinx.fem import assemble_scalar, Constant
-from dolfinx.fem import Function
+from dolfinx.fem import assemble_scalar, form
+from dolfinx.fem import Constant
 from ufl import grad, sym, inner, tr, Identity, det, ln, dev, conditional, gt, dx
 
 
@@ -63,9 +63,9 @@ def H(Hold, data, psi):
 def compute_fracture_volume(phi, u):
     v = ufl.TestFunction(phi.function_space)
     expr = ufl.inner(grad(phi), -u) * v * dx
-    return fem.assemble_scalar(fem.form(expr))
+    return assemble_scalar(form(expr))
 
-def get_E_expression(data):
+def get_E_expression(mesh, data):
     # Devuelve una expresión UFL para E(x) según regiones
     if "E_regions" in data:
         regions = sorted(data["E_regions"], key=lambda r: r["x_max"])
@@ -81,7 +81,7 @@ def get_E_expression(data):
         expr = expr + ufl.conditional(x[0] > regions[-1]['x_max'], regions[-1]['E'], 0.0)
         return expr
     else:
-        return Constant(data["mesh"], float(data["E"]))
+        return Constant(mesh, float(data["E"]))
     
 
 if __name__ == "__main__":

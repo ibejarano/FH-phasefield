@@ -1,9 +1,9 @@
 # from dolfin import DirichletBC, SubDomain, Constant
-
 import numpy as np
 from dolfinx.mesh import locate_entities
 from basix.ufl import element
 from dolfinx import default_scalar_type
+from dolfinx import fem
 
 def create_crack_domain(center, l0, w0):
     def crack_indicator(x):
@@ -14,8 +14,8 @@ def create_crack_domain(center, l0, w0):
     return crack_indicator
 
 def setup_boundary_conditions(phase, displacement, mesh, boundary_markers, data):
-    V = phase
-    W = displacement
+    V = phase.V
+    W = displacement.V
     bcs_u = []
     bcs_phi = []
     bc_config = data.get("boundary_conditions", {})
@@ -34,6 +34,16 @@ def setup_boundary_conditions(phase, displacement, mesh, boundary_markers, data)
 
     # Fractura inicial
     crack_config = bc_config.get("initial_crack", {})
+
+    def left_boundary(x):
+        return np.isclose(x[0], 0.0)
+
+    bc_phi_test = fem.dirichletbc(
+        fem.Constant(mesh, 1.0),
+        fem.locate_dofs_geometrical(V, left_boundary),
+        V
+    )
+
     if crack_config:
         center = crack_config.get("center", [0.0, 0.0])
         l0 = crack_config.get("l0", data.get("linit", 0.0))
@@ -43,9 +53,10 @@ def setup_boundary_conditions(phase, displacement, mesh, boundary_markers, data)
             mesh, mesh.topology.dim,
             crack_indicator
         )
-        bc_phi_crack = fem.dirichletbc(fem.Constant(mesh, 1.0), dofs, V)
+        bc_phi_crack = fem.dirichletbc(default_scalar_type(1.0), dofs, V)
         bcs_phi.append(bc_phi_crack)
 
+    bcs_phi.append(bc_phi_test)
     return bcs_u, bcs_phi
 
 if __name__ == "__main__":

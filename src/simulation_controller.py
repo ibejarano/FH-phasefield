@@ -1,18 +1,17 @@
 import logging
-from dolfin import TensorFunctionSpace, Function, project
 import json
 import time
 import datetime
-import numpy as np
 
-from mesh_setup import setup_gmsh, setup_rect_mesh
+from mesh_setup import setup_gmsh
 from material_model import epsilon, select_sigma, select_psi, compute_fracture_volume, get_E_expression
 from variational_forms import define_variational_forms
-from output_utils import create_output_files, write_output, store_time_series
+from output_utils import create_output_files, write_output
 from boundary_conditions import setup_boundary_conditions
 from fields.history import HistoryField
 from fields.phase import PhaseField
 from fields.displacement import DisplacementField
+from fields.stress import StressField
 from utils import fracture_length
 
 logger = logging.getLogger(__name__)
@@ -30,17 +29,16 @@ class Simulation:
         logger.info("Setting up simulation...")
         ## MESHING ##
         if self.data["mesh_data"]["type"] == "rectangle":
-            self.mesh, self.boundary_markers = setup_rect_mesh(self.data)
+            raise ValueError("Rectangle mesh type is not supported in this version. Use 'gmsh' instead.")
+            #self.mesh, self.boundary_markers = setup_rect_mesh(self.data)
         elif self.data["mesh_data"]["type"] == "gmsh":
             self.mesh, self.boundary_markers = setup_gmsh(self.caseDir, self.data)
         else:
             logger.error("config mesh data not recognized")
             raise RuntimeError("config mesh data not recognized")
 
-        self.Vsig = TensorFunctionSpace(self.mesh, "DG", 0)
-
         # Material models
-        self.E_expr = get_E_expression(self.data)
+        self.E_expr = get_E_expression(self.mesh, self.data)
         nu = self.data["nu"]
         self.psi = select_psi("linear")
         self.sigma = select_sigma("linear")
@@ -50,12 +48,10 @@ class Simulation:
         self.history = HistoryField(self.mesh, self.psi, self.E_expr, nu, self.data)
         self.displacement = DisplacementField(self.mesh)
         self.phase = PhaseField(self.mesh)
+        self.stress = StressField(self.mesh, self.data, self.E_expr)
 
         # Boundary Conditions
-        self.bc_u, self.bc_phi = setup_boundary_conditions(self.phase, self.displacement, self.boundary_markers, self.data)
-
-        # Functions
-        self.sigt = Function(self.Vsig, name="stress")
+        self.bc_u, self.bc_phi = setup_boundary_conditions(self.phase, self.displacement, self.mesh, self.boundary_markers, self.data)
 
         # Variational Forms and Solvers
         E_du, E_phi, self.pressure = define_variational_forms(
@@ -67,7 +63,7 @@ class Simulation:
         self.phase.setup_solver(E_phi, self.bc_phi)
 
         # Output setup
-        self.out_xml, self.u_ts, self.phi_ts = create_output_files(self.caseDir)
+        self.out_xml = create_output_files(self.caseDir, self.mesh.comm)
         self.fname = open(f"./{self.caseDir}/output.csv", 'w')
         self.fname.write("time,pressure,volume\n")
 
@@ -75,7 +71,7 @@ class Simulation:
         self.t = 0.0
         self.step = 0
         self.pn = self.p_init
-        self.pressure.assign(self.pn)
+        self.pressure.value = self.p_init
 
         # Initial solve/state setup
         logger.info("Performing initial solve...")
@@ -101,7 +97,7 @@ class Simulation:
         vol_tol = self.data["tolerances"]["volume"]
         check_val = Vtarget if abs(Vtarget) > 1e-15 else 1.0
 
-        pn = float(self.pressure)
+        pn = float(self.pressure.value)
         prevs = []  # Guarda (pn, VK) para método secante
         ite = 0
         max_ite = 20
@@ -112,14 +108,14 @@ class Simulation:
         while True:
             ite += 1
 
-            self.pressure.assign(pn)
+            self.pressure.value = pn
             self.displacement.solve()
             unew = self.displacement.get()
             self.history.update(unew)
 
             VK = compute_fracture_volume(pold, unew)
             errV = Vtarget - VK
-            #logger.info(f"Iteration {ite}: Pressure={pn:.4f}, Volume={VK:.6e}, Target={Vtarget:.6e}, Error={(errV/Vtarget):.2e}")
+            logger.info(f"Iteration {ite}: Pressure={pn:.4f}, Volume={VK:.6e}, Target={Vtarget:.6e}, Error={(errV/Vtarget):.2e}")
 
             prevs.append((pn, VK))
             if len(prevs) > 2:
@@ -190,9 +186,8 @@ class Simulation:
                 unew = self.displacement.get()
 
                 vol_frac = compute_fracture_volume(pnew, unew)
-
-                stress_expr = (1-pnew)**2 * self.sigma(unew, self.E_expr, self.data.get("nu", 0.3))
-                self.sigt.assign(project(stress_expr, self.Vsig))
+                # stress_new = self.stress.compute(self.sigma, pnew, unew)
+                logger.info("Converged")
                 fracture_length_value = fracture_length(pnew)
                 self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value}\n")
 
@@ -211,13 +206,14 @@ class Simulation:
                 self.pn_old = pn_new
 
                 if self.step % self.data.get("output_frequency", 10) == 0:
-                    write_output(self.out_xml, unew, pnew, self.sigt, self.t)
-                    self.fname.flush()
+                    #write_output(self.out_xml, unew, pnew, pnew, self.t)
+                    #self.fname.flush()
                     saved_vtus += 1
 
                 if final_length > 0:
                     progress = min(fracture_length_value / final_length, 1.0)
 
+                    logger.info("Converged") 
                     # Estimar tiempo restante usando el avance de la fractura
                     if progress > 0:
                         elapsed = time.time() - start_time
