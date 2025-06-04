@@ -35,8 +35,13 @@ class DisplacementField:
         a = fem.form(ufl.lhs(E_du))
         L = fem.form(ufl.rhs(E_du))
         problem = LinearProblem(a, L, bc_u, self.new,
-                                petsc_options={"ksp_type": "gmres", "pc_type": "ilu"}
-                                )
+                                petsc_options={
+                                        "ksp_type": "gmres",
+                                        "pc_type": "hypre",
+                                        "pc_hypre_type": "boomeramg",
+                                        "ksp_rtol": 1e-8,
+                                        "ksp_max_it": 1000
+                                    })
         self.problem = problem
 
     def solve(self):
