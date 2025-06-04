@@ -3,6 +3,7 @@ import logging
 from dolfinx import fem
 from basix.ufl import element
 from dolfinx.fem.petsc import LinearProblem
+from mpi4py import MPI
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,10 @@ class PhaseField:
     
     def get_error(self):
         diff = self.new.x.array - self.old.x.array
-        return float((diff @ diff)**0.5)
+        local_norm2 = float(diff @ diff)
+        # Suma global de la norma cuadrada
+        global_norm2 = self.mesh.comm.allreduce(local_norm2, op=MPI.SUM)
+        return global_norm2**0.5
     
     def setup_solver(self, E_phi, bc_phi):
         """

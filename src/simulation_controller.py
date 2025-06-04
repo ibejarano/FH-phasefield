@@ -3,6 +3,7 @@ import json
 import time
 import datetime
 import numpy as np
+from mpi4py import MPI
 
 from mesh_setup import setup_gmsh
 from material_model import epsilon, select_sigma, select_psi, compute_fracture_volume, get_E_expression
@@ -65,8 +66,12 @@ class Simulation:
 
         # Output setup
         self.out_xml = create_output_files(self.caseDir, self.mesh)
-        self.fname = open(f"./{self.caseDir}/output.csv", 'w')
-        self.fname.write("time,pressure,volume\n")
+        self.rank = MPI.COMM_WORLD.Get_rank()
+        if self.rank == 0:
+            self.fname = open(f"./{self.caseDir}/output.csv", 'w')
+            self.fname.write("time,pressure,volume\n")
+        else:
+            self.fname = None
 
         # Simulation control variables
         self.t = 0.0
@@ -208,7 +213,9 @@ class Simulation:
                     #logger.warning("Simulation appears to be stalled")
                     #break
 
-                self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value}\n")
+                if self.rank == 0 and self.fname is not None:
+                    self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value}\n")
+                    self.fname.flush()
 
                 pn_new = self.pn
                 # Cambio relativo de presión
@@ -226,7 +233,6 @@ class Simulation:
 
                 if self.step % self.data.get("output_frequency", 10) == 0:
                     write_output(self.out_xml,self.t, u=unew, phi=pnew)
-                    self.fname.flush()
                     saved_vtus += 1
 
                 if final_length > 0:
@@ -296,7 +302,7 @@ class Simulation:
 
     def _cleanup(self):
         """Cleanup resources"""
-        if hasattr(self, 'fname') and self.fname:
+        if self.rank == 0 and hasattr(self, 'fname') and self.fname:
             self.fname.close()
             logger.info("Closed output CSV file.")
 
