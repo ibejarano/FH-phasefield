@@ -1,5 +1,5 @@
 {
-    "name": "run_transition_6",
+    "name": "test_run",
     "description": "GMSH mesh case", 
     "E": 2e8,
     "nu": 0.3,
@@ -8,7 +8,7 @@
     "aspect_hl": 3,
     "h": 1e-3,
     "h_coarse": 8e-1,
-    "px": 0,
+    "px": 1000,
     "psi_model": "linear",
     "delta_H": 0.00,
     "dt": 2e-5,
@@ -18,8 +18,9 @@
     "dt_shrink": 1.0,
     "dt_growth": 1.0,
     "t_max": 1,
-    "l_max": 2.0,
+    "l_max": 0.1,
     "H": 1.5,
+    "Hinf": -10,
     "mesh_data": {
         "type": "gmsh",
         "file_name": "curving_H"
@@ -28,15 +29,10 @@
         "volume": 1e-5,
         "phi": 0.5e-3
     },
-    "boundary_conditions": {
-        "displacement": {
-            "20": {"value": [0.0, 0.0]}
-        },
-        "initial_crack" : {
-            "center": [0.0, 0.0],
-            "l0": 0.0075,
-            "w0": 0.5e-3
-        }
+    "initial_crack" : {
+        "center": [0.0, 0.0],
+        "l0": 0.0075,
+        "w0": 0.5e-3
     },
-    "output_frequency": 100
+    "output_frequency": 2
 }

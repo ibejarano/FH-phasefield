@@ -7,9 +7,7 @@ def setup_gmsh(caseDir, data):
     mesh_file = data["mesh_data"]["file_name"]
     mesh_path = path.join(caseDir, mesh_file)
     mesh = Mesh(mesh_path + ".xml")
-    boundary_markers = MeshFunction('size_t', mesh, mesh_path + "_facet_region.xml")
-
-    return mesh, boundary_markers
+    return mesh
 
 # === Módulo de configuración de malla y espacios funcionales ===
 def setup_rect_mesh(data):

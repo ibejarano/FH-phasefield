@@ -8,8 +8,8 @@ import numpy as np
 from mesh_setup import setup_gmsh, setup_rect_mesh
 from material_model import epsilon, select_sigma, select_psi, compute_fracture_volume, get_E_expression
 from variational_forms import define_variational_forms
-from output_utils import create_output_files, write_output, store_time_series
-from boundary_conditions import setup_boundary_conditions
+from output_utils import create_output_files, write_output
+from boundary_conditions import setup_shallow_bc, create_markers
 from fields.history import HistoryField
 from fields.phase import PhaseField
 from fields.displacement import DisplacementField
@@ -30,9 +30,9 @@ class Simulation:
         logger.info("Setting up simulation...")
         ## MESHING ##
         if self.data["mesh_data"]["type"] == "rectangle":
-            self.mesh, self.boundary_markers = setup_rect_mesh(self.data)
+            self.mesh = setup_rect_mesh(self.data)
         elif self.data["mesh_data"]["type"] == "gmsh":
-            self.mesh, self.boundary_markers = setup_gmsh(self.caseDir, self.data)
+            self.mesh = setup_gmsh(self.caseDir, self.data)
         else:
             logger.error("config mesh data not recognized")
             raise RuntimeError("config mesh data not recognized")
@@ -52,15 +52,15 @@ class Simulation:
         self.phase = PhaseField(self.mesh)
 
         # Boundary Conditions
-        self.bc_u, self.bc_phi = setup_boundary_conditions(self.phase, self.displacement, self.boundary_markers, self.data)
-
+        self.bc_u, self.bc_phi = setup_shallow_bc(self.phase, self.displacement, self.data)
+        markers = create_markers(self.mesh)
         # Functions
         self.sigt = Function(self.Vsig, name="stress")
 
         # Variational Forms and Solvers
         E_du, E_phi, self.pressure = define_variational_forms(
             epsilon, self.sigma, self.history.get(), self.phase, self.displacement,
-            self.data, self.boundary_markers, self.E_expr, nu
+            self.data, self.E_expr, nu, markers
         )
 
         self.displacement.setup_solver(E_du, self.bc_u)
