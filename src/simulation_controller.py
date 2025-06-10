@@ -212,8 +212,10 @@ class Simulation:
 
                 if self.step % self.data.get("output_frequency", 10) == 0:
                     write_output(self.out_xml, unew, pnew, self.sigt, self.t)
-                    self.fname.flush()
                     saved_vtus += 1
+
+                if self.step % self.data.get("store_frequency", 5) == 0:
+                    self.fname.flush()
 
                 if final_length > 0:
                     progress = min(fracture_length_value / final_length, 1.0)

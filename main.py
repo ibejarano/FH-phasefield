@@ -20,7 +20,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-def actualizar_geo_con_parametros(geo_path, h, h_coarse, H):
+def actualizar_geo_con_parametros(geo_path, h, h_coarse, H, l_max):
     """
     Reemplaza los valores de gridsize y ref_gridsize en el archivo .geo.
     """
@@ -35,6 +35,8 @@ def actualizar_geo_con_parametros(geo_path, h, h_coarse, H):
             nuevas_lineas.append(f"ref_gridsize = {h};\n")
         elif line.strip().startswith("H_sup"):
             nuevas_lineas.append(f"H_sup = {H};\n")
+        elif line.strip().startswith("dx"):
+            nuevas_lineas.append(f"dx = {l_max/2};\n")
         else:
             nuevas_lineas.append(line)
 
@@ -65,8 +67,9 @@ if __name__ == "__main__":
     h = config_data.get("h", None)
     h_coarse = config_data.get("h_coarse", None)
     H = config_data.get("H", None)
+    l_max = config_data.get("l_max", None)
     if h is not None and h_coarse is not None:
-        actualizar_geo_con_parametros(geo_path, h, h_coarse, H)
+        actualizar_geo_con_parametros(geo_path, h, h_coarse, H, l_max)
     else:
         logger.warning("Advertencia: No se encontraron los parámetros 'h' y 'h_coarse' en el archivo de configuración.")
 

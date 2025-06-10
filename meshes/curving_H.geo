@@ -2,12 +2,12 @@
 gridsize = 0.8;
 ref_gridsize = 0.001;
 L = 20;
-H_sup = 0.9;
+H_sup = 0.8;
 H_inf = 10;
-dx = 0.25;
+dx = 0.6;
 y_crack = -0.01;
 dy_crack = 0.01 - y_crack;
-refb_gridsize = 0.8;
+refb_gridsize = 0.8*H_sup/4;
 //
 Point(1) = { -L/2 , H_sup   ,0.0, gridsize};
 Point(2) = { -L/2 , -H_inf  ,0.0, gridsize};
