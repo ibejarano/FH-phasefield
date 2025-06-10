@@ -2,9 +2,9 @@
 gridsize = 0.8;
 ref_gridsize = 0.001;
 L = 20;
-H_sup = 0.8;
+H_sup = 1.5;
 H_inf = 10;
-dx = 0.6;
+dx = 0.1;
 y_crack = -0.01;
 dy_crack = 0.01 - y_crack;
 refb_gridsize = 0.8*H_sup/4;
@@ -38,12 +38,6 @@ Curve Loop(2) = {10,11,12,13};
 // EL curve loop 2 es mi crack inicial
 Plane Surface(1) = {1,2};
 Plane Surface(2) = {2};
-// Colocacion de tags
-Physical Line(10) = {3};
-Physical Line(20) = {2};
-Physical Line(30) = {1};
-Physical Line(40) = {4,5,6};
-Physical Surface(1) = {2,1};
 //
 //Mesh.RecombineAll =1;
 // Recombine Surface{1};

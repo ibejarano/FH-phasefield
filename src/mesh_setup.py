@@ -2,11 +2,13 @@
 from dolfin import Mesh, MeshFunction, FunctionSpace, VectorFunctionSpace, Point, RectangleMesh, DOLFIN_EPS, near, SubDomain, File
 import numpy as np # Import numpy
 from os import path
+from mpi4py import MPI
 
 def setup_gmsh(caseDir, data):
     mesh_file = data["mesh_data"]["file_name"]
     mesh_path = path.join(caseDir, mesh_file)
-    mesh = Mesh(mesh_path + ".xml")
+    comm = MPI.COMM_WORLD
+    mesh = Mesh(comm, mesh_path + ".xml")
     return mesh
 
 # === Módulo de configuración de malla y espacios funcionales ===

@@ -3,7 +3,7 @@ from dolfin import TensorFunctionSpace, Function, project
 import json
 import time
 import datetime
-import numpy as np
+from mpi4py import MPI
 
 from mesh_setup import setup_gmsh, setup_rect_mesh
 from material_model import epsilon, select_sigma, select_psi, compute_fracture_volume, get_E_expression
@@ -180,6 +180,7 @@ class Simulation:
         progress = 0
         try:
             while self.t <= self.data["t_max"] and progress < 0.95:
+                start_time_step = time.time()
                 self.step += 1
                 self.t += self.dt
 
@@ -193,7 +194,7 @@ class Simulation:
 
                 stress_expr = (1-pnew)**2 * self.sigma(unew, self.E_expr, self.data.get("nu", 0.3))
                 self.sigt.assign(project(stress_expr, self.Vsig))
-                fracture_length_value = fracture_length(pnew)
+                fracture_length_value = 0.001# fracture_length(pnew)
                 self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value}\n")
 
                 pn_new = self.pn
@@ -217,29 +218,28 @@ class Simulation:
                 if self.step % self.data.get("store_frequency", 5) == 0:
                     self.fname.flush()
 
-                if final_length > 0:
-                    progress = min(fracture_length_value / final_length, 1.0)
+                elapsed_time_step = time.time() - start_time_step
+                if MPI.COMM_WORLD.rank == 0:
+                    if final_length > 0:
+                        progress = min(fracture_length_value / final_length, 1.0)
 
-                    # Estimar tiempo restante usando el avance de la fractura
-                    if progress > 0:
-                        elapsed = time.time() - start_time
-                        estimated_total_time = elapsed / progress
-                        remaining_time = estimated_total_time - elapsed
-                        end_time = datetime.datetime.now() + datetime.timedelta(seconds=remaining_time)
-                        msg = (
-                            f"Estimated : {end_time.strftime('%Y-%m-%d %H:%M:%S')} | "
-                            f"Fracture progress: {progress*100:.1f}% | "
-                            f"Time: {self.t:.2e} s | "
-                            f"Step/VTUS: {self.step}/{saved_vtus} | "
-                            f" | dt: {self.dt:.2e} | "
-                            f"delta p: {delta_p:.4e} | "
-                        )
-                        logger.info(msg)
+                        # Estimar tiempo restante usando el avance de la fractura
+                        if progress > 0:
+                            elapsed = time.time() - start_time
+                            estimated_total_time = elapsed / progress
+                            remaining_time = estimated_total_time - elapsed
+                            end_time = datetime.datetime.now() + datetime.timedelta(seconds=remaining_time)
+                            msg = (
+                                f"Fracture progress: {progress*100:.1f}% | "
+                                f"Time: {self.t:.2e} s | "
+                                f"Step/VTUS: {self.step}/{saved_vtus} | "
+                                f" | completed in: {elapsed_time_step:.2f} s | "
+                            )
+                            logger.info(msg)
+                        else:
+                            logger.info("Waiting for fracture to start growing to estimate end time.")
                     else:
-                        logger.info("Waiting for fracture to start growing to estimate end time.")
-                else:
-                    logger.info(f"Fracture length: {fracture_length_value:.4f}")
-
+                        logger.info(f"Fracture length: {fracture_length_value:.4f}")
 
         except Exception as e:
             logger.error(f"Simulation stopped due to error: {e}")

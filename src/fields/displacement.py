@@ -1,4 +1,11 @@
 from dolfin import Function, VectorFunctionSpace, TrialFunction, TestFunction
+import logging
+import time
+from mpi4py import MPI
+
+
+logger = logging.getLogger(__name__)
+
 
 class DisplacementField:
     def __init__(self, mesh, V=None):
@@ -34,5 +41,13 @@ class DisplacementField:
         """
         Resuelve el problema de desplazamiento.
         """
+        if logger.isEnabledFor(logging.DEBUG) and MPI.COMM_WORLD.rank == 0:
+            logger.debug("Solving displacement field problem...")
+            start_time = time.time()
+
         self.solver.solve()
         self.update()
+        
+        if logger.isEnabledFor(logging.DEBUG) and MPI.COMM_WORLD.rank == 0:
+            elapsed_time = time.time() - start_time
+            logger.debug(f"Displacement field solved in {elapsed_time:.4f} seconds")

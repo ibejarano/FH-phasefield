@@ -1,4 +1,9 @@
 from dolfin import Function, FunctionSpace, TrialFunction, TestFunction, errornorm
+import logging
+import time
+
+logger = logging.getLogger(__name__)
+
 
 class PhaseField:
     def __init__(self, mesh):
@@ -33,15 +38,19 @@ class PhaseField:
         from dolfin import LinearVariationalProblem, LinearVariationalSolver, lhs, rhs
         p_phi = LinearVariationalProblem(lhs(E_phi), rhs(E_phi), self.new, bc_phi)
         solver_phi = LinearVariationalSolver(p_phi)
-        solver_phi.parameters["linear_solver"] = "gmres"
-        solver_phi.parameters["preconditioner"] = "ilu"
+        #solver_phi.parameters["linear_solver"] = "gmres"
+        #solver_phi.parameters["preconditioner"] = "ilu"
         self.solver = solver_phi
 
     def solve(self):
         """
         Resuelve el problema de campo de fase.
         """
+        logger.debug("Solving phase field problem...")
+        start_time = time.time()
         self.solver.solve()
         error = self.get_error()
         self.update()
+        elapsed_time = time.time() - start_time
+        logger.debug(f"Phase field solved in {elapsed_time:.4f} seconds with error: {error:.6f}")
         return error
