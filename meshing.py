@@ -48,7 +48,7 @@ if __name__ == "__main__":
         exit(1)
 
     config_file = argv[1]
-    config_data = read_data(config_file)
+    config_data = read_data(config_file, overrrides=argv[2:])
     if config_data is None:
         logger.info(f"Error al leer el archivo de configuración: {config_file}")
         exit(1)

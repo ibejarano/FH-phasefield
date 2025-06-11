@@ -178,6 +178,7 @@ class Simulation:
         saved_vtus = 0
         final_length = self.data.get("l_max", 0.0)
         progress = 0
+        size = MPI.COMM_WORLD.Get_size()
         try:
             while self.t <= self.data["t_max"] and progress < 0.95:
                 start_time_step = time.time()
@@ -194,7 +195,10 @@ class Simulation:
 
                 stress_expr = (1-pnew)**2 * self.sigma(unew, self.E_expr, self.data.get("nu", 0.3))
                 self.sigt.assign(project(stress_expr, self.Vsig))
-                fracture_length_value = 0.001# fracture_length(pnew)
+                if size == 1:
+                    fracture_length_value = fracture_length(pnew, x2=final_length/2, x1=-final_length/2)
+                else:
+                    fracture_length_value = 1e-2
                 self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value}\n")
 
                 pn_new = self.pn
@@ -234,6 +238,7 @@ class Simulation:
                                 f"Time: {self.t:.2e} s | "
                                 f"Step/VTUS: {self.step}/{saved_vtus} | "
                                 f" | completed in: {elapsed_time_step:.2f} s | "
+                                f" fr length {fracture_length_value:.4f} | "
                             )
                             logger.info(msg)
                         else:

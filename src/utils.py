@@ -1,7 +1,10 @@
 from dolfin import *
+from mpi4py import MPI
 import numpy as np
 import json
+import logging
 
+logger = logging.getLogger(__name__)
 
 def fracture_length(phi, x1=-1, x2=1, y=0.0, npoints=5000, cutoff=0.6):
     """
@@ -175,21 +178,32 @@ def thethap(sigma_x, sigma_y, tau_xy):
     return atan((2 * tau_xy) / (sigma_x - sigma_y))
 
 
-def read_data(fname):
+def read_data(fname, overrrides=None):
     with open(f"data/{fname}.json", "r") as f:
         data = json.load(f)
+
+
+    if overrrides is not None:
+        overrides = parse_overrides(overrrides)
+        for k, v in overrides.items():
+            if k in data:
+                data[k] = v
+            else:
+                print(f"Warning: Override key '{k}' not found in data. Skipping.")
     return data
+
+def parse_overrides(args):
+    overrides = {}
+    for arg in args:
+        if "=" in arg:
+            k, v = arg.split("=", 1)
+            # Intenta convertir a float, si falla deja como string
+            try:
+                v_eval = eval(v, {}, {})
+            except Exception:
+                v_eval = v
+            overrides[k] = v_eval
+    return overrides
 
 # ("stress_0"+"stress_4")/2 + sqrt((("stress_0"-"stress_4")/2)^2 + "stress_1"^2)
 
-if __name__ == "__main__":
-    #save_stress("results/curving_H_20", step=2)
-    import json
-
-    with open("results/test/simulation_output.txt", "r") as f:
-        for l in f:
-            if l[0] == "{":
-                a = json.loads(l)
-                print(a)
-                print(a["Eyoung"])
-    print("Finished")
