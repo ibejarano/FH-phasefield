@@ -49,8 +49,6 @@ def compute_opening_grad(uvec, phivec, grad_phivec, lelem, lfracmax, tol=0.01):
             wx += -u_y[1] * grad_phi_y[1] * lelem
             
         w_overx.append(wx)
-
-
     return xs, np.array(w_overx)
 
 def compute_opening_cutoff(uvec, phivec, lelem, lfracmax, phi_val=0.5):
@@ -73,110 +71,38 @@ def compute_opening_cutoff(uvec, phivec, lelem, lfracmax, phi_val=0.5):
         w_overx.append(wx_value)
     return xs, np.array(w_overx)
 
+def compute_opening_overtime(uvec, phivec, lelem, x= 0.0, phi_val=0.5):
+    """
+    Calcula la apertura de la fractura a lo largo del tiempo.
+    Args:
+        uvec: Función vectorial de desplazamiento
+        phivec: Función de fase
+        lelem: Longitud del elemento
+        lfracmax: Longitud máxima de la fractura
+        phi_val: Valor de fase para considerar apertura (default 0.5)
+    Returns:
+        w_overx: Apertura a lo largo de la fractura
+    """
+    y_plus = np.flip(np.arange(lelem, 10e-2, lelem))
+    y_minus = np.arange(-10e-2, -lelem, lelem)
 
-def line_integral(u, A, B, n, cutoff = 0.0): 
-    '''Integrate u over segment [A, B] partitioned into n elements'''
-    A = np.array(A)
-    B = np.array(B)
-    assert u.value_rank() == 0
-    assert len(A) == len(B) > 1 and np.linalg.norm(A-B) > 0
-    assert n > 0
+    w_plus_value = 0.0
+    w_minus_value = 0.0
+    for y in y_plus:
+        u_y = uvec(x, y)
+        phi_y = phivec(x, y)
+        if phi_y >= phi_val:
+            w_plus_value = u_y[1]
+            break
+            
+    for y in y_minus:
+        u_y = uvec(x, y)
+        phi_y = phivec(x, y)
+        if phi_y >= phi_val:
+            w_minus_value = u_y[1]
+            break
 
-    # Mesh line for integration
-    mesh_points = [A + t*(B-A) for t in np.linspace(0, 1, n+1)]
-    tdim, gdim = 1, len(A)
-    mesh = Mesh()
-    editor = MeshEditor()
-    editor.open(mesh, "interval", tdim, gdim)
-    editor.init_vertices(n+1)
-    editor.init_cells(n)
-
-    for vi, v in enumerate(mesh_points): editor.add_vertex(vi, v)
-
-    for ci in range(n): editor.add_cell(ci, np.array([ci, ci+1], dtype='uintp'))
-
-    editor.close()
-
-    # Setup funcion space
-    elm = u.function_space().ufl_element()
-    family = elm.family()
-    degree = elm.degree()
-    V = FunctionSpace(mesh, family, degree)
-    v = interpolate(u, V)
-
-    newarr = np.array([ v if v > cutoff else 0 for v in v.vector()[:] ])
-    v.vector()[:] = newarr[:]
-
-    return assemble(v*dx)
-
-def get_values_overline_x(x1, x2, y=0.0, vec=None , npoints=100):
-    tol = 0.0001 # avoid hitting points outside the domain
-    xs = np.linspace(x1 + tol, x2 - tol, npoints)
-    points = [(x_, y) for x_ in xs] # 2D points
-    values = np.array([vec(point) for point in points])
-    return values, xs
-
-def get_distance_from_cutoff(cutoff: float, x: np.array, vec: np.array, center=0.0):
-    ind = np.absolute( vec - cutoff).argmin()
-    return abs(x[ind] - center), ind
-
-def save_stress(caseDir, step=100):
-    mesh = Mesh(f"{caseDir}/malla.xml.gz")
-    V = FunctionSpace(mesh, 'CG', 1)
-    W = VectorFunctionSpace(mesh, 'CG', 1)
-    Vsig = TensorFunctionSpace(mesh, "DG", degree=0)
-    phit = Function(V, name="phi")
-    ut = Function(W, name="displacement")
-    sigt = Function(Vsig, name="stress")
-    u_ts = TimeSeries(f"{caseDir}/u_series")
-    phi_ts = TimeSeries(f"{caseDir}/phi_series")
-
-    # Definimos las vars para almacenar las tensiones ppales
-    Vp = VectorFunctionSpace(mesh, "DG",degree=1)
-    svec11 = Function(W, name="S11")
-    theta11 = Function(W, name="dir11")
-    svec22 = Function(W, name="S22")
-    theta22 = Function(W, name="dir22")
-
-    xdmffile = XDMFFile(f"{caseDir}/output_stress.xdmf")
-    xdmffile.parameters["flush_output"] = True
-    xdmffile.parameters["functions_share_mesh"] = True
-
-    times = u_ts.vector_times()
-
-    for t in times[::step]:
-        u_ts.retrieve(ut.vector(), t)
-        phi_ts.retrieve(phit.vector(), t)
-        sigt.assign(project( (1-phit)**2 * sigma(ut), Vsig))
-        sx = sigt.sub(0)
-        sy = sigt.sub(3)
-        txy = sigt.sub(1)
-        svec11.assign(project(as_vector((sigma11(sx,sy,txy),0.)), Vp))
-        svec22.assign(project(as_vector((sigma22(sx,sy,txy),0.)), Vp))
-
-        THETAP =  thethap(sx,sy,txy)
-
-        theta11.assign(project(as_vector((cos(THETAP), sin(THETAP))), Vp))
-        theta22.assign(project(as_vector((sin(THETAP), -cos(THETAP))), Vp))
-
-        xdmffile.write(sigt, t)
-        xdmffile.write(ut, t)
-        xdmffile.write(svec11, t)
-        xdmffile.write(svec22, t)
-        xdmffile.write(theta11, t)
-        xdmffile.write(theta22, t)
-
-    return
-
-def sigma11(sigma_x, sigma_y, tau_xy): # magnitude of first principal stress
-    return ((sigma_x+sigma_y)/2 + sqrt(((sigma_x-sigma_y)/2)**2 + tau_xy**2))
-
-def sigma22(sigma_x, sigma_y, tau_xy): # magnitude of second principal stress
-    return ((sigma_x+sigma_y)/2 - sqrt(((sigma_x-sigma_y)/2)**2 + tau_xy**2))
-
-def thethap(sigma_x, sigma_y, tau_xy):
-    return atan((2 * tau_xy) / (sigma_x - sigma_y))
-
+    return w_plus_value, w_minus_value
 
 def read_data(fname, overrrides=None):
     with open(f"data/{fname}.json", "r") as f:
@@ -207,3 +133,18 @@ def parse_overrides(args):
 
 # ("stress_0"+"stress_4")/2 + sqrt((("stress_0"-"stress_4")/2)^2 + "stress_1"^2)
 
+if __name__ == "__main__":
+    # Ejemplo de uso
+    import matplotlib.pyplot as plt
+    u = lambda x, y: np.array([0, 1/(y**4)])
+    phi = lambda x, y: 0.0 if abs(y) > 0.005 else 1
+
+
+    yp, yn = compute_opening_overtime(u, phi, lelem=0.0001, phi_val=0.5)
+
+    #plt.plot(yp,label="Apertura positiva")
+    #plt.plot(yn, label="Apertura negativa")
+    plt.plot(yp, 1/abs(yp), label="Apertura positiva")
+    plt.plot(yn, 1/abs(yn), label="Apertura negativa")
+    plt.ylim(-1, 100)
+    plt.show()

@@ -2,7 +2,6 @@ import logging
 from dolfin import TensorFunctionSpace, Function, project
 import json
 import time
-import datetime
 from mpi4py import MPI
 
 from mesh_setup import setup_gmsh, setup_rect_mesh
@@ -13,7 +12,7 @@ from boundary_conditions import setup_shallow_bc, create_markers
 from fields.history import HistoryField
 from fields.phase import PhaseField
 from fields.displacement import DisplacementField
-from utils import fracture_length
+from utils import fracture_length, compute_opening_overtime
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +68,7 @@ class Simulation:
         # Output setup
         self.out_xml, self.u_ts, self.phi_ts = create_output_files(self.caseDir)
         self.fname = open(f"./{self.caseDir}/output.csv", 'w')
-        self.fname.write("time,pressure,volume\n")
+        self.fname.write("time,pressure,volume,length,wplus,wminus\n")
 
         # Simulation control variables
         self.t = 0.0
@@ -192,6 +191,7 @@ class Simulation:
                 unew = self.displacement.get()
 
                 vol_frac = compute_fracture_volume(pnew, unew)
+                w_plus, w_minus = compute_opening_overtime(unew, pnew, self.data["h"]/20)
 
                 stress_expr = (1-pnew)**2 * self.sigma(unew, self.E_expr, self.data.get("nu", 0.3))
                 self.sigt.assign(project(stress_expr, self.Vsig))
@@ -199,7 +199,7 @@ class Simulation:
                     fracture_length_value = fracture_length(pnew, x2=final_length/2, x1=-final_length/2)
                 else:
                     fracture_length_value = 1e-2
-                self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value}\n")
+                self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value},{w_plus},{w_minus}\n")
 
                 pn_new = self.pn
                 # Cambio relativo de presión
@@ -226,13 +226,7 @@ class Simulation:
                 if MPI.COMM_WORLD.rank == 0:
                     if final_length > 0:
                         progress = min(fracture_length_value / final_length, 1.0)
-
-                        # Estimar tiempo restante usando el avance de la fractura
                         if progress > 0:
-                            elapsed = time.time() - start_time
-                            estimated_total_time = elapsed / progress
-                            remaining_time = estimated_total_time - elapsed
-                            end_time = datetime.datetime.now() + datetime.timedelta(seconds=remaining_time)
                             msg = (
                                 f"Fracture progress: {progress*100:.1f}% | "
                                 f"Time: {self.t:.2e} s | "
