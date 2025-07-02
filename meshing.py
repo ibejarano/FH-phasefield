@@ -49,6 +49,7 @@ if __name__ == "__main__":
 
     config_file = argv[1]
     config_data = read_data(config_file, overrrides=argv[2:])
+    
     if config_data is None:
         logger.info(f"Error al leer el archivo de configuración: {config_file}")
         exit(1)
@@ -60,13 +61,18 @@ if __name__ == "__main__":
 
     caseDir = os.path.join("./results", case_name)
     config_data["caseDir"] = caseDir
-    mesh_name = config_data.get("mesh_data", {}).get("file_name", "mesh")
+    mesh_parameters = config_data.get("meshing_parameters", {})
+    mesh_name = mesh_parameters.get("file_name", None)
+
+    if mesh_name is None:
+        logger.info("El archivo de configuración debe contener un campo 'file_name' en 'meshing_parameters'.")
+        exit(1)
 
     geo_path = f"meshes/{mesh_name}.geo"
-    h = config_data.get("h", None)
-    h_coarse = config_data.get("h_coarse", None)
-    H = config_data.get("H", None)
-    l_max = config_data.get("l_max", None)
+    h = mesh_parameters.get("h", None)
+    h_coarse = mesh_parameters.get("h_coarse", None)
+    H = mesh_parameters.get("H", None)
+    l_max = mesh_parameters.get("l_max", None)
     if h is not None and h_coarse is not None:
         actualizar_geo_con_parametros(geo_path, h, h_coarse, H, l_max)
     else:

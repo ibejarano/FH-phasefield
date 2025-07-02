@@ -1,47 +1,51 @@
-from sys import argv
-import os
-from src.utils import read_data
-from src.simulation_controller import Simulation
-from dolfin import LogLevel, set_log_level
-set_log_level(LogLevel.ERROR)  # Configura el nivel de log de DOLFIN a WARNING
-
+import argparse
 import logging
+from pathlib import Path
 
-# Configuración básica de logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s]  %(funcName)s: %(message)s",
-    datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("simulation.log"),
-    ]
-)
+from dolfin import set_log_level, LogLevel
 
-logger = logging.getLogger(__name__)
+from src.config import Config
+from src.problem import Problem
+from src.solver_strategy import StaggeredSolver
 
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.StreamHandler()
+        ]
+    )
+
+def main():
+    parser = argparse.ArgumentParser(description="Run a phase-field simulation.")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="data/gmsh_1.json",
+        help="Path to the configuration JSON file.",
+    )
+    args = parser.parse_args()
+
+    setup_logging()
+    set_log_level(LogLevel.ERROR)
+
+    try:
+        # 1. Load Configuration
+        config_path = Path(args.config)
+        config = Config(config_path)
+
+        # 2. Set up the physical problem
+        problem = Problem(config)
+
+        # 3. Instantiate the solver and run the simulation
+        solver = StaggeredSolver(problem, config)
+        solver.run()
+
+    except FileNotFoundError as e:
+        logging.error(e)
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}", exc_info=True)
 
 if __name__ == "__main__":
-    if len(argv) < 2:
-        logger.info("Uso: python main.py <archivo_configuracion> [clave=valor ...]")
-        exit(1)
-
-    config_file = argv[1]
-    config_data = read_data(config_file, overrrides=argv[2:])
-    if config_data is None:
-        logger.info(f"Error al leer el archivo de configuración: {config_file}")
-        exit(1)
-
-    case_name = config_data.get("name", None)
-    if case_name is None:
-        logger.info("El archivo de configuración debe contener un campo 'name'.")
-        exit(1)
-
-    caseDir = os.path.join("./results", case_name)
-    config_data["caseDir"] = caseDir
-
-    simulation = Simulation(config_data)
-    for handler in logger.handlers:
-        if hasattr(handler, 'flush'):
-            handler.flush()
-    simulation.run()
+    main()

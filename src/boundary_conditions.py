@@ -7,22 +7,21 @@ def create_crack_domain(center, l0, w0):
             return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
     return CrackDomain()
 
-def setup_boundary_conditions(phase, displacement, boundary_markers, data):
+def setup_shallow_bc(phase, displacement, data):
     V = phase.V
     W = displacement.V
+    mesh = W.mesh()
+    
     bcs_u = []
     bcs_phi = []
-    bc_config = data.get("boundary_conditions", {}) # Leer config del JSON
 
-    for marker_id, bc_data in bc_config.get("displacement", {}).items():
-        value = bc_data.get("value", [0.0, 0.0]) # Valor por defecto
-        # value = [None if v == "None" else v for v in value]
-        for i, v in enumerate(value):
-            if v != "None" and v is not None:
-                bc = DirichletBC(W.sub(i), Constant(v), boundary_markers, int(marker_id))
-                bcs_u.append(bc)
+    def bottom_side(x, on_boundary):
+        return near(x[1], mesh.coordinates()[:, 0].min())
 
-    crack_config = bc_config.get("initial_crack", {})
+    bc_bottom = DirichletBC(W, Constant((0.0, 0.0)), bottom_side)
+    bcs_u.append(bc_bottom)
+
+    crack_config = data.get("initial_crack", {})
     if crack_config:
         center = crack_config.get("center", [0.0, 0.0])
         l0 = crack_config.get("l0", data.get("linit", 0.0)) # Usar linit si no está especificado aquí
@@ -33,19 +32,27 @@ def setup_boundary_conditions(phase, displacement, boundary_markers, data):
 
     return bcs_u, bcs_phi
 
-def setup_shallow_bc(phase, displacement, data):
+def setup_deep_bc(phase, displacement, data):
+    """
+    Aqui voy a colocar como deep pero en realidad estoy restringuiendo el movimiento en la superficie libre
+    """
     V = phase.V
     W = displacement.V
+    mesh = W.mesh()
+
     bcs_u = []
     bcs_phi = []
-    Hinf = data.get("Hinf", None) 
-    assert Hinf is not None, "Hinf must be defined in data"
+
+    def upper_side(x, on_boundary):
+        return near(x[1], mesh.coordinates()[:, 0].max())
 
     def bottom_side(x, on_boundary):
-        return near(x[1], Hinf)
+        return near(x[1], mesh.coordinates()[:, 0].min())
 
+    bc_upper = DirichletBC(W, Constant((0.0, 0.0)), upper_side)
     bc_bottom = DirichletBC(W, Constant((0.0, 0.0)), bottom_side)
     bcs_u.append(bc_bottom)
+    bcs_u.append(bc_upper)
 
     crack_config = data.get("initial_crack", {})
     if crack_config:

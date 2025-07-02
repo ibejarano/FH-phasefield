@@ -1,4 +1,5 @@
-from dolfin import inv, sym, inner, tr, Identity, det, ln, dev, grad, conditional, gt, assemble, dx, TensorFunctionSpace, Expression
+from dolfin import inv, sym, inner, tr, Identity, det, ln, dev, grad, conditional, gt, assemble, dx, TensorFunctionSpace, Expression, UserExpression
+import math
 
 def epsilon(u):
     return sym(grad(u))
@@ -75,3 +76,40 @@ def get_E_expression(data):
         return Expression(expr, degree=0)
     else:
         return Expression(str(data["E"]), degree=0)
+
+
+class ModuloPorCapas(UserExpression):
+    # Pasamos los parámetros al inicializar la clase
+    def __init__(self, E1, E2, e1, e2, angle=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.E1 = E1
+        self.E2 = E2
+        self.e_total = e1 + e2 # Espesor del bloque repetitivo
+        self.espesor_capa1 = e1
+        self.espesor_capa2 = e2
+        self.angle = angle  # Angle in degrees
+
+        # Precompute rotation matrix for efficiency
+        theta = math.radians(self.angle)
+        self.cos_theta = math.cos(theta)
+        self.sin_theta = math.sin(theta)
+
+    def eval(self, value, x):
+        """
+        Esta función se evalúa en cada punto 'x' de la malla.
+        Se rota el sistema de coordenadas por el ángulo dado para alinear las capas.
+        """
+        # Rotar las coordenadas
+        x_rot = self.cos_theta * x[0] + self.sin_theta * x[1]
+        y_rot = -self.sin_theta * x[0] + self.cos_theta * x[1]
+
+        # Usamos y_rot para la lógica de capas periódicas
+        y_local = y_rot % self.e_total
+
+        if y_local <= self.espesor_capa1:
+            value[0] = self.E1
+        else:
+            value[0] = self.E2
+
+    def value_shape(self):
+        return () # Es una propiedad escalar
