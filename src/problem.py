@@ -39,10 +39,11 @@ class Problem:
 
         # Boundary Conditions
         # TODO: Make BC selection more robust based on config
+        symmetric = self.config.get("symmetric", False)
         if self.config.params["case_type"] == "shallow":
-            self.bc_u, self.bc_phi = setup_shallow_bc(self.phase, self.displacement, self.config.params)
+            self.bc_u, self.bc_phi = setup_shallow_bc(self.phase, self.displacement, self.config.params, symmetric)
         else:
-            self.bc_u, self.bc_phi = setup_deep_bc(self.phase, self.displacement, self.config.params)
+            self.bc_u, self.bc_phi = setup_deep_bc(self.phase, self.displacement, self.config.params, symmetric)
 
         self.markers = create_markers(self.mesh)
 
