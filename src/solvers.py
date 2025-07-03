@@ -48,7 +48,6 @@ def pressure_solver(Vtarget, phase, displacement, history, pressure, vol_tol, me
     
     # Initial pressure estimate
     pn_initial = float(pressure)
-    print("pn_initial", pn_initial)
     
     try:
         if method == 'brentq':
@@ -96,7 +95,7 @@ def pressure_solver(Vtarget, phase, displacement, history, pressure, vol_tol, me
         
         # Final check
         final_error = abs(objective_function(pn)) / (abs(Vtarget) if abs(Vtarget) > 1e-15 else 1.0)
-        
+
         if final_error > vol_tol:
             logger.warning(f"Method {method} converged with error {final_error:.2e} > {vol_tol:.2e}")
             return -1, pn
@@ -134,14 +133,16 @@ def _original_secant_method(Vtarget, phase, displacement, history, pressure, vol
         
         if abs(errV) / abs(check_val) < vol_tol: 
             break
-        
-        if len(prevs) == 2 and abs(prevs[1][1] - prevs[0][1]) > 1e-12:
+
+        if len(prevs) == 2:
+            print("LLegando", prevs[1][1] - prevs[0][1])
+
+        if len(prevs) == 2 and abs(prevs[1][1] - prevs[0][1]) > 1e-14:
             pn = prevs[1][0] + (Vtarget - prevs[1][1]) * (prevs[1][0] - prevs[0][0]) / (prevs[1][1] - prevs[0][1])
         else:
             pn *= 1.01
         
         pn = max(pn, 0.0)
-        
         if ite > max_ite:
             logger.warning(f"Original secant method reached max iterations ({ite}) with error {abs(errV)/abs(check_val):.2e} > {vol_tol:.2e}")
             return -1, pn

@@ -113,3 +113,40 @@ class ModuloPorCapas(UserExpression):
 
     def value_shape(self):
         return () # Es una propiedad escalar
+    
+
+class PoissonPorCapas(UserExpression):
+    # Pasamos los parámetros al inicializar la clase
+    def __init__(self, nu1, nu2, e1, e2, angle=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.nu1 = nu1
+        self.nu2 = nu2
+        self.e_total = e1 + e2 # Espesor del bloque repetitivo
+        self.espesor_capa1 = e1
+        self.espesor_capa2 = e2
+        self.angle = angle  # Angle in degrees
+
+        # Precompute rotation matrix for efficiency
+        theta = math.radians(self.angle)
+        self.cos_theta = math.cos(theta)
+        self.sin_theta = math.sin(theta)
+
+    def eval(self, value, x):
+        """
+        Esta función se evalúa en cada punto 'x' de la malla.
+        Se rota el sistema de coordenadas por el ángulo dado para alinear las capas.
+        """
+        # Rotar las coordenadas
+        x_rot = self.cos_theta * x[0] + self.sin_theta * x[1]
+        y_rot = -self.sin_theta * x[0] + self.cos_theta * x[1]
+
+        # Usamos y_rot para la lógica de capas periódicas
+        y_local = y_rot % self.e_total
+
+        if y_local <= self.espesor_capa1:
+            value[0] = self.nu1
+        else:
+            value[0] = self.nu2
+
+    def value_shape(self):
+        return () # Es una propiedad escalar

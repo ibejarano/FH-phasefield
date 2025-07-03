@@ -9,11 +9,7 @@
         "Qo": 2e-3
     },
     "solver_parameters": {
-        "dt": 2e-5,
-        "dt_min": 2e-5,
-        "dt_max": 1e-2,
-        "dt_growth": 1.2,
-        "dt_shrink": 0.5,
+        "dt": 10e-5,
         "t_max": 1.0,
         "tolerances": {
             "volume": 1e-5,

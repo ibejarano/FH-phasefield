@@ -1,7 +1,8 @@
 {
-    "name": "test_frac",
-    "case_type": "shallow",
+    "name": "test_frac_scipy",
+    "case_type": "deep",
     "description": "GMSH mesh case",
+    "pressure_solver_method": "root_scalar",
     "material_parameters": {    
         "E": 2e8,
         "nu": 0.3,
@@ -18,21 +19,16 @@
     "aspect_hl": 3,
     "px": 1000,
     "solver_parameters": {
-        "dt": 2e-5,
-        "dt_min": 2e-5,
-        "dt_max": 1e-2,
-        "pressure_tol_adapt": 0.01,
-        "dt_shrink": 1.0,
-        "dt_growth": 1.0,
-        "t_max": 1,
+        "dt": 10e-5,
+        "t_max": 10e-4,
         "tolerances":{
-            "volume": 1e-5,
-            "phi": 1e-3
+            "volume": 1e-6,
+            "phi": 1e-4
         }
     },
     "initial_crack" : {
         "center": [0.0, 0.0],
-        "l0": 0.0075,
+        "l0": 0.005,
         "w0": 0.5e-3
     },
     "output_frequency": 1

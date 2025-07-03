@@ -75,9 +75,9 @@ class StaggeredSolver:
         Vtarget = V0 + self.dt * Q0
         
         # Get the optimization method from config, default to 'brentq'
-        method = self.config.get("pressure_solver_method", "brentq")
+        method = self.config.get("pressure_solver_method", "root_scalar")
         
-        # Call the new pressure solver
+        # Call the new pressure solver
         ite_p, pn = pressure_solver(
             Vtarget=Vtarget,
             phase=self.phase,
@@ -87,7 +87,7 @@ class StaggeredSolver:
             vol_tol=self.vol_tol,
             method=method
         )
-        
+
         return ite_p, pn
 
     def _solve_step(self):
@@ -107,6 +107,7 @@ class StaggeredSolver:
 
         self.displacement.update()
         self.phase.update()
+        self.history.update(self.displacement.get())
         return pn
 
     def run(self):
