@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class Config:
-    def __init__(self, config_path: Path):
+    def __init__(self, config_path: Path, case_dir: str):
         if not isinstance(config_path, Path):
             config_path = Path(config_path)
 
@@ -15,6 +15,7 @@ class Config:
         logger.info(f"Loading configuration from: {config_path}")
         with open(config_path, 'r') as f:
             self.params = json.load(f)
+        self.case_dir_str = case_dir
 
     def get(self, key, default=None):
         return self.params.get(key, default)
@@ -24,6 +25,4 @@ class Config:
 
     @property
     def case_dir(self) -> Path:
-        # Defaults to "results/{name}" if not specified
-        name = self.get('name', 'unnamed_case')
-        return Path(self.get("caseDir", f"results/{name}")) 
+        return Path(f"results/{self.case_dir_str}")

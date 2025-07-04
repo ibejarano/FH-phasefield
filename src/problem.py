@@ -21,7 +21,7 @@ class Problem:
         self.config = config
         logger.info("Setting up the simulation problem...")
 
-        ## MESHING ##        
+        ## MESHING ##
         self.mesh = setup_gmsh(self.config.case_dir, self.config.params)
 
         self.Vsig = TensorFunctionSpace(self.mesh, "DG", 0)

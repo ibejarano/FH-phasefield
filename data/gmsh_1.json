@@ -1,5 +1,4 @@
 {
-    "name": "test_frac_sym",
     "case_type": "deep",
     "description": "GMSH mesh case",
     "pressure_solver_method": "root_scalar",
@@ -14,7 +13,7 @@
         "file_name": "curving_H_sym",
         "h": 1e-3,
         "h_coarse": 8e0,
-        "l_max": 0.6,
+        "l_max": 0.1,
         "H": 10
     },
     "aspect_hl": 3,

@@ -1,4 +1,5 @@
 from sys import argv
+import argparse
 import os
 import subprocess
 from src.utils import read_data
@@ -43,24 +44,23 @@ def actualizar_geo_con_parametros(geo_path, h, h_coarse, H, l_max):
 
 if __name__ == "__main__":
 
-    if len(argv) < 2:
-        logger.info("Uso: python main.py <archivo_configuracion>")
-        exit(1)
+    parser = argparse.ArgumentParser(description="Generador de mallas para la simulacion")
 
-    config_file = argv[1]
-    config_data = read_data(config_file, overrrides=argv[2:])
+    parser.add_argument("--config", type=str, help="Archivo de configuración JSON")
+    parser.add_argument("--case_dir", type=str, default=None, help="Directorio de resultados/caso (sobrescribe el del JSON)")
+
+    args = parser.parse_args()
+
+    config_file = args.config
+    config_data = read_data(config_file)
     
     if config_data is None:
         logger.info(f"Error al leer el archivo de configuración: {config_file}")
         exit(1)
 
-    case_name = config_data.get("name", None)
-    if case_name is None:
-        logger.info("El archivo de configuración debe contener un campo 'name'.")
-        exit(1)
-
-    caseDir = os.path.join("./results", case_name)
+    caseDir = args.case_dir
     config_data["caseDir"] = caseDir
+
     mesh_parameters = config_data.get("meshing_parameters", {})
     mesh_name = mesh_parameters.get("file_name", None)
 

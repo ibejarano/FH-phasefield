@@ -140,7 +140,7 @@ class StaggeredSolver:
                 else:
                     fracture_length_value = 1e-2 # Placeholder for MPI
                 
-                self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value},{w_plus},{w_minus}\\n")
+                self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value},{w_plus},{w_minus}\n")
 
                 if self.step % self.config.get("output_frequency", 10) == 0:
                     write_output(self.out_xml, unew, pnew, self.sigt, self.t)

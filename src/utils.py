@@ -105,7 +105,7 @@ def compute_opening_overtime(uvec, phivec, lelem, x= 0.0, phi_val=0.5):
     return w_plus_value, w_minus_value
 
 def read_data(fname, overrrides=None):
-    with open(f"data/{fname}.json", "r") as f:
+    with open(fname, "r") as f:
         data = json.load(f)
 
 

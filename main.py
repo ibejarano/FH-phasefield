@@ -19,6 +19,14 @@ def setup_logging():
 
 def main():
     parser = argparse.ArgumentParser(description="Run a phase-field simulation.")
+
+    parser.add_argument(
+        "--case_dir",
+        type=str,
+        default=None,
+        help="Directorio de resultados (caso) sobreescribe archivo config.json"
+        )
+
     parser.add_argument(
         "--config",
         type=str,
@@ -33,7 +41,7 @@ def main():
     try:
         # 1. Load Configuration
         config_path = Path(args.config)
-        config = Config(config_path)
+        config = Config(config_path, case_dir=args.case_dir)
 
         # 2. Set up the physical problem
         problem = Problem(config)
