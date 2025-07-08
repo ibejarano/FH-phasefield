@@ -134,9 +134,6 @@ def _original_secant_method(Vtarget, phase, displacement, history, pressure, vol
         if abs(errV) / abs(check_val) < vol_tol: 
             break
 
-        if len(prevs) == 2:
-            print("LLegando", prevs[1][1] - prevs[0][1])
-
         if len(prevs) == 2 and abs(prevs[1][1] - prevs[0][1]) > 1e-14:
             pn = prevs[1][0] + (Vtarget - prevs[1][1]) * (prevs[1][0] - prevs[0][0]) / (prevs[1][1] - prevs[0][1])
         else:

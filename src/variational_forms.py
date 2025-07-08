@@ -2,7 +2,6 @@ from dolfin import inner, grad, dx, dot, Measure, Constant
 
 def define_variational_forms(epsilon, sigma_func, H, phase, displacement, data, E_expr, markers):
     nu = data["material_parameters"]["nu"]
-    print(data)
     Gc = data["material_parameters"]["Gc"]
     l = data["aspect_hl"] * data["meshing_parameters"]["h"]
     p_init = data.get("p_init", 100.0)

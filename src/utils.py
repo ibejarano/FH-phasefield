@@ -18,9 +18,6 @@ def export_phi_to_csv(phi, mesh, output_dir):
     nombre_archivo = output_dir / "output_coords.csv"
     csv_header = "x,y" if mesh.geometry().dim() == 2 else "x,y,z"
 
-    print(coordenadas_filtradas.shape)
-    print(coordenadas_filtradas[:,0].max())
-
     np.savetxt(
         nombre_archivo,
         coordenadas_filtradas,
@@ -29,7 +26,7 @@ def export_phi_to_csv(phi, mesh, output_dir):
         comments=''
     )
 
-    print(f"Coordenadas exportadas correctamente a {nombre_archivo}")
+    logger.info(f"Coordenadas maximas X:{coordenadas_filtradas[:,0].max():.1e} Y:{coordenadas_filtradas[:,1].max():.1e}")
 
 
 def fracture_length(phi, x1=-1, x2=1, y=0.0, npoints=5000, cutoff=0.6):

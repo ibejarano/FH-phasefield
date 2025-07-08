@@ -159,7 +159,7 @@ class StaggeredSolver:
                             f"Step time: {elapsed_time_step:.2f}s"
                         )
                     else:
-                        logger.info(f"Time: {self.t:.2e}s | Step: {self.step} | Length: {fracture_length_value:.4f}")
+                        logger.info(f"Time: {self.t:.2e}s | Step: {self.step}")
 
         except Exception as e:
             logger.error(f"Simulation stopped due to error: {e}", exc_info=True)

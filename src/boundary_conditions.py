@@ -8,7 +8,6 @@ def create_crack_domain(center, l0, w0):
     return CrackDomain()
 
 def setup_shallow_bc(phase, displacement, data, symmetric=False):
-    print("Setting up shallow bc", symmetric)
     V = phase.V
     W = displacement.V
     mesh = W.mesh()
@@ -41,7 +40,6 @@ def setup_deep_bc(phase, displacement, data, symmetric=False):
     """
     Aqui voy a colocar como deep pero en realidad estoy restringuiendo el movimiento en la superficie libre
     """
-    print("Setting up deep bc", symmetric)
     V = phase.V
     W = displacement.V
     mesh = W.mesh()
