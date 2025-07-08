@@ -8,7 +8,7 @@ from .problem import Problem
 from .config import Config
 from .output_utils import create_output_files, write_output
 from .material_model import compute_fracture_volume
-from .utils import fracture_length, compute_opening_overtime
+from .utils import fracture_length, compute_opening_overtime, export_phi_to_csv
 from .solvers import pressure_solver
 
 logger = logging.getLogger(__name__)
@@ -142,12 +142,13 @@ class StaggeredSolver:
                 
                 self.fname.write(f"{self.t},{self.pn},{vol_frac},{fracture_length_value},{w_plus},{w_minus}\n")
 
-                if self.step % self.config.get("output_frequency", 10) == 0:
+                if self.step % self.config.get("output_frequency", 100) == 0:
                     write_output(self.out_xml, unew, pnew, self.sigt, self.t)
                     saved_vtus += 1
                 
-                if self.step % self.config.get("store_frequency", 1) == 0:
+                if self.step % self.config.get("store_frequency", 10) == 0:
                     self.fname.flush()
+                    export_phi_to_csv(pnew, self.problem.mesh, self.case_dir)
 
                 elapsed_time_step = time.time() - start_time_step
                 if MPI.COMM_WORLD.rank == 0:

@@ -100,7 +100,7 @@ def pressure_solver(Vtarget, phase, displacement, history, pressure, vol_tol, me
             logger.warning(f"Method {method} converged with error {final_error:.2e} > {vol_tol:.2e}")
             return -1, pn
         
-        logger.info(f"Pressure solver ({method}) converged in {iterations} iterations")
+        logger.debug(f"Pressure solver ({method}) converged in {iterations} iterations")
         return iterations, pn
         
     except Exception as e:

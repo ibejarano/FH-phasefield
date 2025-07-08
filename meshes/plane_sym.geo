@@ -2,9 +2,9 @@
 gridsize = 8.0;
 ref_gridsize = 0.001;
 L = 100;
-H_sup = 10;
+H_sup = 3;
 H_inf = 50;
-dx = 0.05;
+dx = 0.1;
 dy_crack =0.02;
 refb_gridsize = 0.8*H_sup/4;
 //

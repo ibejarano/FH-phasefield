@@ -6,6 +6,32 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def export_phi_to_csv(phi, mesh, output_dir):
+    coordenadas = mesh.coordinates()
+    valores_phi = phi.compute_vertex_values(mesh)
+
+    # 1 Obtenemos los indices donde phi es igual a 1
+    indices = np.where(np.greater_equal(valores_phi, 0.5))
+
+    coordenadas_filtradas = coordenadas[indices]
+
+    nombre_archivo = output_dir / "output_coords.csv"
+    csv_header = "x,y" if mesh.geometry().dim() == 2 else "x,y,z"
+
+    print(coordenadas_filtradas.shape)
+    print(coordenadas_filtradas[:,0].max())
+
+    np.savetxt(
+        nombre_archivo,
+        coordenadas_filtradas,
+        delimiter=",",
+        header=csv_header,
+        comments=''
+    )
+
+    print(f"Coordenadas exportadas correctamente a {nombre_archivo}")
+
+
 def fracture_length(phi, x1=-1, x2=1, y=0.0, npoints=5000, cutoff=0.6):
     """
     Aproxima el largo de la fractura evaluando phi sobre la línea y sumando los tramos donde phi < cutoff.
