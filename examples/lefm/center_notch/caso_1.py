@@ -1,7 +1,6 @@
 from dolfin import *
 import numpy as np
-import matplotlib.pyplot as plt
-
+from variational_forms.linear_static import elastic_energy_funcional
 
 # Este primer caso esta enfocado en reproducir la placa con crack central
 # La placa esta sometida a traccion 
@@ -30,18 +29,11 @@ mu = E / (2 * (1 + nu))
 lmbda = E*nu / ((1 + nu)*(1 - 2*nu))
 lmbda = 2 * mu * lmbda / (lmbda + 2 * mu)
 
-def epsilon(u):
-    return sym(grad(u))
-
-def sigma(u):
-    return lmbda*tr(epsilon(u))*Identity(2) + 2*mu*epsilon(u)
-
-
 ds = ds(subdomain_data=boundaries)
 u = TrialFunction(V)
 v = TestFunction(V)
 
-a = inner(sigma(u), epsilon(v))*dx
+a = elastic_energy_funcional(u, v, lmbda, mu)
 
 p1 = 183e6*0.02
 
@@ -92,10 +84,7 @@ norm_KI = KI_est / den_KI
 KI_eq24 = p1 * np.sqrt(np.pi * Lcrack) * ( ( 1- Lcrack/(2) + 0.326*(Lcrack/1)**2)  / (np.sqrt(1 - Lcrack/1)) )
 print("Teo" , KI_eq24 / den_KI)
 print("Calculado", np.max(norm_KI))
-plt.semilogx(r, norm_KI)
-# plt.plot(r, KII_est)
 
-plt.show()
 file = File('caso1.pvd')
 file << u_sol
 # np.savetxt(f"caso_1.csv", np.array([r, KI_est, KII_est]), header="r,KI,KII", delimiter=",", comments='')

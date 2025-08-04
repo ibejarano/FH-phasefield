@@ -2,7 +2,7 @@
 Lx = 1;
 Ly = 2;
 Lcrack = 0.3;
-beta_angle = 0;
+beta_angle = 45;
 beta_rad = beta_angle * Pi/180 ;
 x1 = Cos(beta_rad) * Lcrack ;
 y1 = Sin(beta_rad) * Lcrack ;

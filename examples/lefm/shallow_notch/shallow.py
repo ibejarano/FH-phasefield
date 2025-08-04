@@ -1,8 +1,8 @@
 from dolfin import *
 import numpy as np
 from math import sin, cos
-import matplotlib.pyplot as plt
 import subprocess
+from variational_forms.linear_static import elastic_energy_funcional
 
 def reemplazar_H(ruta_geo: str, nuevo_valor: float) -> None:
     # Leer todas las líneas
@@ -38,7 +38,6 @@ p1 = 183e6*esp # Presion interna
 casos = np.geomspace(0.04, 10, 30)
 
 K_calcs = np.zeros((len(casos), 2))
-fig, axs = plt.subplots(2, 1, sharex=True)
 up_arr = np.zeros(len(casos))
 um_arr = np.zeros(len(casos))
 us_arr = np.zeros(len(casos))
@@ -75,19 +74,11 @@ for j, H_prof in enumerate(casos):
     lmbda = E*nu / ((1 + nu)*(1 - 2*nu))
     # lmbda = 2 * mu * lmbda / (lmbda + 2 * mu)
 
-    def epsilon(u):
-        return sym(grad(u))
-
-    def sigma(u):
-        return lmbda*tr(epsilon(u))*Identity(2) + 2*mu*epsilon(u)
-
-
     ds = ds(subdomain_data=boundaries)
     u = TrialFunction(V)
     v = TestFunction(V)
 
-    a = inner(sigma(u), epsilon(v))*dx
-
+    a = elastic_energy_funcional(u, v, lmbda, mu)
 
     upper_traction = Constant((0.0, p1))
     L_form  = dot(upper_traction, v)*ds(10) - dot(upper_traction, v)*ds(11)
@@ -138,11 +129,6 @@ for j, H_prof in enumerate(casos):
             KI_calc[i] = 0
             KII_calc[i] = 0
 
-
-    axs[0].semilogx(r_crack, KI_calc/rel_KI, label=f"{H_prof:.2f}")
-    axs[1].semilogx(r_crack, KII_calc/rel_KI, label=f"{H_prof:.2f}")
-
-
     # El mismo calculo pero de otra manera
 
     KI_teo = p1 * np.sqrt(np.pi * Lcrack) * (np.cos(beta_rad)**2 + alpha * np.sin(beta_rad)**2)
@@ -159,24 +145,7 @@ for j, H_prof in enumerate(casos):
     up_arr[j] = u_sol(0, d_offset)[1]
     um_arr[j] = u_sol(0, -d_offset)[1]
 
-#axs[0].hlines(y = KI_teo/rel_KI, xmin=np.min(r_crack), xmax=np.max(r_crack), label="KI Teo")
-#axs[1].hlines(y = KII_teo/rel_KI, xmin=np.min(r_crack), xmax=np.max(r_crack), label="KII Teo")
-axs[0].set_ylabel("KI")
-axs[1].set_ylabel("KII")
-axs[1].set_xlabel("r (distancia al tip)")
-axs[0].legend()
-axs[1].legend()
-
-
-plt.figure()
-
-aH = Lcrack / np.array(casos)
-plt.plot(aH, K_calcs[:, 0], marker="o", label="K I")
-plt.plot(aH, K_calcs[:, 1], marker="o", label= "K II")
-plt.xlabel("a / H")
-plt.xscale("log")
-plt.legend()
-plt.show()
 #file = File('shallow.pvd')
 #file << u_sol
+aH = Lcrack / np.array(casos)
 np.savetxt(f"outputs.csv", np.array([aH, K_calcs[:, 0], K_calcs[:, 1], us_arr, up_arr,um_arr]).T, header="aH,KI,KII,us,up,um", delimiter=",", comments='')

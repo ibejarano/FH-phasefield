@@ -1,7 +1,8 @@
 from dolfin import *
 import numpy as np
 from math import sin, cos
-import matplotlib.pyplot as plt
+from variational_forms.linear_static import elastic_energy_funcional
+
 np.seterr(divide='raise')
 
 # Este primer caso esta enfocado en reproducir la placa con crack central
@@ -34,18 +35,11 @@ mu = E / (2 * (1 + nu))
 lmbda = E*nu / ((1 + nu)*(1 - 2*nu))
 # lmbda = 2 * mu * lmbda / (lmbda + 2 * mu)
 
-def epsilon(u):
-    return sym(grad(u))
-
-def sigma(u):
-    return lmbda*tr(epsilon(u))*Identity(2) + 2*mu*epsilon(u)
-
-
 ds = ds(subdomain_data=boundaries)
 u = TrialFunction(V)
 v = TestFunction(V)
 
-a = inner(sigma(u), epsilon(v))*dx
+a = elastic_energy_funcional(u, v, lmbda, mu)
 
 p1 = 183e6*0.02 # Presion interna
 
@@ -101,17 +95,6 @@ for i, (x, y) in enumerate(zip(xs, ys)):
 dU = np.abs(uplus_res[:, 1] - uminus_res[:, 1]) # No TOCAR
 dV = np.abs(uplus_res[:, 0] - uminus_res[:, 0])
 
-plt.semilogx(r_crack, dU, "r--", label="Desplazamiento Normal")
-plt.semilogx(r_crack, dV, "b--", label="Desplazamiento Tangencial")
-plt.xlabel("r (distancia al tip)")
-
-plt.figure()
-
-plt.semilogx(r_crack, KI_calc/rel_KI, "r--", label="KI calculado")
-plt.semilogx(r_crack, KII_calc/rel_KI, "b--", label="KII calculado")
-plt.xlabel("r (distancia al tip)")
-# El mismo calculo pero de otra manera
-
 KI_teo = p1 * np.sqrt(np.pi * Lcrack) * (np.cos(beta_rad)**2 + alpha * np.sin(beta_rad)**2)
 KII_teo = p1 * np.sqrt(np.pi * Lcrack) * (1-alpha) * np.sin(beta_rad) * np.cos(beta_rad)
 print("Teo KI" , KI_teo / rel_KI)
@@ -119,11 +102,7 @@ print("Calc KI", np.max(KI_calc)/rel_KI)
 print("-------")
 print("Teo KII" , KII_teo / rel_KI)
 
-plt.hlines(y = KI_teo/rel_KI, xmin=np.min(r_crack), xmax=np.max(r_crack), label="KI Teo")
-plt.hlines(y = KII_teo/rel_KI, xmin=np.min(r_crack), xmax=np.max(r_crack), label="KII Teo")
-
-
 plt.show()
-file = File('caso4.pvd')
+file = File('deep.pvd')
 file << u_sol
 # np.savetxt(f"caso_1.csv", np.array([r, KI_est, KII_est]), header="r,KI,KII", delimiter=",", comments='')
