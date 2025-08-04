@@ -1,4 +1,8 @@
-from dolfin import inner, grad, dx, dot, Measure, Constant, TrialFunction, tr, Identity, sym, dev, conditional, gt, Function
+from dolfin import inner, grad, dx, dot, Measure, Constant, TrialFunction, tr, Identity, sym, dev, Function, assemble
+
+def compute_fracture_volume(phi, u):
+    vol_frac = assemble( inner(grad(phi), -u) * dx )
+    return vol_frac
 
 def epsilon(u):
     return sym(grad(u))
