@@ -1,7 +1,7 @@
-Mesh.Algorithm = 8; 
+// Mesh.Algorithm = 8; 
 gridsize = 2e-1;
 ref_gridsize = 3e-3;
-L = 1;
+L = 0.3;
 H = 1;
 dy = 0.03;
 //
@@ -34,6 +34,6 @@ Plane Surface(1) = {1};
 Plane Surface(2) = {2};
 Plane Surface(3) = {3};
 //
-Mesh.RecombineAll =1;
-Recombine Surface{1};
+// Mesh.RecombineAll =1;
+// Recombine Surface{1};
 // Recombine Surface{2};

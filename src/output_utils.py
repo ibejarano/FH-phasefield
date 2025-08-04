@@ -18,3 +18,9 @@ def write_output(xdmf, u, phi, stress, t):
 def store_time_series(u_ts, phi_ts, u, phi, t):
     u_ts.store(u.vector(), t)
     phi_ts.store(phi.vector(), t)
+
+def create_xml_output(case_dir):
+    xdmf = XDMFFile(f"{case_dir}/output.xdmf")
+    xdmf.parameters["flush_output"] = True
+    xdmf.parameters["functions_share_mesh"] = True
+    return xdmf
