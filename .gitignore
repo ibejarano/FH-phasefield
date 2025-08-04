@@ -166,3 +166,8 @@ fracturepaths/
 *.png
 *.Cesaro
 *.Whewell
+*.xml
+*.pvd
+*.vtk
+*.msh
+*.vtu
