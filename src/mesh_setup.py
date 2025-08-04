@@ -6,17 +6,12 @@ from sys import argv
 import os
 import subprocess
 from src.utils import read_data
-
-def setup_gmsh(caseDir, mesh_data):
-    mesh_file = mesh_data["meshing_parameters"]["file_name"]
-    mesh_path = path.join(caseDir, mesh_file)
-    comm = MPI.COMM_WORLD
-    mesh = Mesh(comm, mesh_path + ".xml")
-    return mesh
-
-
-
 import logging
+
+def setup_gmsh(mesh_file_xml):
+    comm = MPI.COMM_WORLD
+    mesh = Mesh(comm, mesh_file_xml)
+    return mesh
 
 # Configuración básica de logging
 logging.basicConfig(

@@ -7,39 +7,15 @@ def create_crack_domain(center, l0, w0):
             return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
     return CrackDomain()
 
-def setup_shallow_bc(phase, displacement, data, symmetric=False):
-    V = phase.V
-    W = displacement.V
-    mesh = W.mesh()
-    
-    bcs_u = []
-    bcs_phi = []
 
-    def bottom_side(x, on_boundary):
-        return near(x[1], mesh.coordinates()[:, 1].min())
+def setup_bc(phase, 
+                  displacement, 
+                  linit: float,
+                  h_elem: float,
+                  crack_center= [0, 0],
+                  upper_face_free = False,
+                  symmetric = False):
 
-    bc_bottom = DirichletBC(W, Constant((0.0, 0.0)), bottom_side)
-    bcs_u.append(bc_bottom)
-
-    if symmetric:
-        bc_symmetry = setup_symmetric_bc(displacement)
-        bcs_u.append(bc_symmetry)
-
-    crack_config = data.get("initial_crack", {})
-    if crack_config:
-        center = crack_config.get("center", [0.0, 0.0])
-        l0 = crack_config.get("l0", data.get("linit", 0.0)) # Usar linit si no está especificado aquí
-        w0 = crack_config.get("w0", data.get("h", 0.0))     # Usar h si no está especificado aquí
-        crack_subdomain = create_crack_domain(center, l0, w0)
-        bc_phi_crack = DirichletBC(V, Constant(1.0), crack_subdomain)
-        bcs_phi.append(bc_phi_crack)
-
-    return bcs_u, bcs_phi
-
-def setup_deep_bc(phase, displacement, data, symmetric=False):
-    """
-    Aqui voy a colocar como deep pero en realidad estoy restringuiendo el movimiento en la superficie libre
-    """
     V = phase.V
     W = displacement.V
     mesh = W.mesh()
@@ -53,23 +29,20 @@ def setup_deep_bc(phase, displacement, data, symmetric=False):
     def bottom_side(x, on_boundary):
         return near(x[1], mesh.coordinates()[:, 1].min())
 
-    bc_upper = DirichletBC(W, Constant((0.0, 0.0)), upper_side)
     bc_bottom = DirichletBC(W, Constant((0.0, 0.0)), bottom_side)
     bcs_u.append(bc_bottom)
-    bcs_u.append(bc_upper)
+
+    if not upper_face_free:
+        bc_upper = DirichletBC(W, Constant((0.0, 0.0)), upper_side)
+        bcs_u.append(bc_upper)
 
     if symmetric:
         bc_symmetry = setup_symmetric_bc(displacement)
         bcs_u.append(bc_symmetry)
 
-    crack_config = data.get("initial_crack", {})
-    if crack_config:
-        center = crack_config.get("center", [0.0, 0.0])
-        l0 = crack_config.get("l0", data.get("linit", 0.0)) # Usar linit si no está especificado aquí
-        w0 = crack_config.get("w0", data.get("h", 0.0))     # Usar h si no está especificado aquí
-        crack_subdomain = create_crack_domain(center, l0, w0)
-        bc_phi_crack = DirichletBC(V, Constant(1.0), crack_subdomain)
-        bcs_phi.append(bc_phi_crack)
+    crack_subdomain = create_crack_domain(crack_center, linit, h_elem)
+    bc_phi_crack = DirichletBC(V, Constant(1.0), crack_subdomain)
+    bcs_phi.append(bc_phi_crack)
 
     return bcs_u, bcs_phi
 

@@ -1,7 +1,8 @@
 from dolfin import FunctionSpace, Function, project, conditional, gt
+from variational_forms.phase_field import psi
 
 class HistoryField:
-    def __init__(self, mesh, psi_func, E_expr, nu, data):
+    def __init__(self, mesh, _lambda, _mu):
         """
         V: espacio de funciones
         psi_func: función de energía (por ejemplo, psi_linear)
@@ -11,16 +12,14 @@ class HistoryField:
         """
         self.V = FunctionSpace(mesh, "DG", 0)
         self.field = Function(self.V)
-        self.psi_func = psi_func
-        self.E_expr = E_expr
-        self.nu = nu
-        self.data = data
+        self._lambda = _lambda
+        self._mu = _mu
 
-    def update(self, u):
+    def update(self, u: Function):
         """
         Actualiza el campo de historia con el desplazamiento actual u.
         """
-        psi_val = self.psi_func(u, self.E_expr, self.nu)
+        psi_val = psi(u, self._lambda, self._mu)
         # Actualiza el campo de historia: H = max(H, psi)
         new_H = conditional(gt(psi_val, self.field), psi_val, self.field)
         self.field.assign(project(new_H, self.field.function_space()))

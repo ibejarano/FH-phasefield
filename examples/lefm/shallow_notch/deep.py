@@ -102,7 +102,6 @@ print("Calc KI", np.max(KI_calc)/rel_KI)
 print("-------")
 print("Teo KII" , KII_teo / rel_KI)
 
-plt.show()
 file = File('deep.pvd')
 file << u_sol
 # np.savetxt(f"caso_1.csv", np.array([r, KI_est, KII_est]), header="r,KI,KII", delimiter=",", comments='')
