@@ -171,3 +171,8 @@ fracturepaths/
 *.vtk
 *.msh
 *.vtu
+*.h5
+*.xdmf
+*.out
+examples/hydraulic_fracture/deep_fracture/output*
+examples/hydraulic_fracture/shallow_fracture/output*
