@@ -1,4 +1,3 @@
-import logging
 from dolfin import Mesh
 from mpi4py import MPI
 from dolfin import set_log_level, LogLevel
@@ -12,23 +11,8 @@ from fields.phase import PhaseField
 from fields.displacement import DisplacementField
 from fields.stress import StressField
 from output_utils import write_output, create_xml_output
-from utils import compute_opening_overtime, export_phi_to_csv
+from utils import compute_opening_overtime, setup_logging
 
-def setup_logging(nombre) -> logging.Logger:
-    logger = logging.getLogger(nombre)
-    logger.setLevel(logging.INFO)
-    
-    # 2. Prepara el handler y el formateador
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%d-%m-%Y %H:%M"
-    )
-    handler.setFormatter(formatter)
-    
-    # 3. Sustituye cualquier handler existente para evitar duplicados
-    logger.handlers = [handler]
-    return logger
 
 logger = setup_logging("Deep Fracture")
 set_log_level(LogLevel.ERROR)
@@ -97,8 +81,8 @@ progress = 0
 size = MPI.COMM_WORLD.Get_size()
 
 # Parametros de simulacion
-t_max = 1e-2
-dt = 2.5e-5
+t_max = 1e-1
+dt = 2.5e-4
 fname = open(f"{CASE_DIR}/output.csv", 'w')
 fname.write("time,pressure,volume,wplus,wminus\n")
 store_freq = 5 # escribir vtk cada n-step
@@ -120,7 +104,7 @@ while t <= t_max:
     except RuntimeError:
         pn, vol_frac = 1, 1
         write_output(out_xml, displacement.get(), phase.get(), stress.get(), t)
-        logging.error("La presión no converge")
+        logger.error("La presión no converge")
         break
 
     except Exception as e:

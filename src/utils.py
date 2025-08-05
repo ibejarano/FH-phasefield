@@ -5,6 +5,22 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def setup_logging(nombre) -> logging.Logger:
+    logger = logging.getLogger(nombre)
+    logger.setLevel(logging.INFO)
+    
+    # 2. Prepara el handler y el formateador
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%d-%m-%Y %H:%M"
+    )
+    handler.setFormatter(formatter)
+    
+    # 3. Sustituye cualquier handler existente para evitar duplicados
+    logger.handlers = [handler]
+    return logger
+
 def export_phi_to_csv(phi, mesh, output_dir):
     coordenadas = mesh.coordinates()
     valores_phi = phi.compute_vertex_values(mesh)
