@@ -1,17 +1,17 @@
 // Mesh.Algorithm = 8; 
 gridsize = 2e-1;
-ref_gridsize = 3e-3;
+ref_gridsize = 2e-3;
 L = 0.3;
 H = 1;
-dy = 0.03;
+dy = 0.01;
 //
-Point(1) = { 0 , H/2  ,0.0, gridsize};
-Point(2) = { 0 , -H/2  ,0.0, gridsize};
+Point(1) = { -L , H/2  ,0.0, gridsize};
+Point(2) = { -L , -H/2  ,0.0, gridsize};
 Point(3) = {  L , -H/2  ,0.0, gridsize};
 Point(4) = {  L , H/2  ,0.0, gridsize};
 // cuadrado donde estará la fractura
-Point(5) = { 0.0 , dy ,0.0, ref_gridsize};
-Point(6) = { 0.0 , -dy ,0.0, ref_gridsize};
+Point(5) = { -L , dy ,0.0, ref_gridsize};
+Point(6) = { -L , -dy ,0.0, ref_gridsize};
 Point(7) = { L , -dy ,0.0, ref_gridsize};
 Point(8) = { L , dy ,0.0, ref_gridsize};
 //

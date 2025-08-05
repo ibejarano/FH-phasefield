@@ -1,7 +1,6 @@
 from dolfin import Function, TensorFunctionSpace, project
 import logging
-from mpi4py import MPI
-from variational_forms.phase_field import sigma
+from variational_forms.common import sigma
 
 logger = logging.getLogger(__name__)
 

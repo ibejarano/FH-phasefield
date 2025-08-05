@@ -1,5 +1,5 @@
 from dolfin import FunctionSpace, Function, project, conditional, gt
-from variational_forms.phase_field import psi
+from variational_forms.common import psi
 
 class HistoryField:
     def __init__(self, mesh, _lambda, _mu):

@@ -1,9 +1,9 @@
 import logging
-from dolfin import TensorFunctionSpace, Function, Mesh
+from dolfin import Mesh
 from mpi4py import MPI
 import time
 
-from variational_forms.phase_field import phase_field_problem, compute_fracture_volume
+from variational_forms.phase_field import phase_field_problem, solve_step_staggered
 from boundary_conditions import setup_bc, create_markers
 from fields.history import HistoryField
 from fields.phase import PhaseField
@@ -37,6 +37,7 @@ mesh = Mesh(comm, f"{CASE_DIR}/deep_fh.xml")
 E = 2e8
 nu = 0.3
 Gc = 2.7
+Q0 = 1e-3
 
 # Computar parametros de Lame
 mu = E / (2 * (1 + nu))
@@ -49,20 +50,20 @@ phase = PhaseField(mesh)
 stress = StressField(mesh, lmbda, mu)
 
 # Phasefield params
-l_init = 0.1
-h_elem = 1e-3
+l_init = 10e-3
+h_elem = mesh.hmin()
 l_c = h_elem * RELACION_HL
 
 # Solver params
-p_init = 100 # Presion inicial
+p_init = 10000 # Presion inicial
 
 # Boundary Conditions
-bcs_u, bcs_phi = setup_bc(phase, displacement, l_init, h_elem)
+bcs_u, bcs_phi = setup_bc(phase, displacement, l_init, h_elem*2)
 
 markers = create_markers(mesh)
 
 # Variational Forms
-E_du, E_phi, p_vec = phase_field_problem(
+E_du, E_phi, pressure = phase_field_problem(
     phase, displacement, history,
     lmbda, mu, Gc,
     p_init, l_c
@@ -82,7 +83,7 @@ size = MPI.COMM_WORLD.Get_size()
 
 # Parametros de simulacion
 t_max = 1e-4
-dt = 2.5e-5
+dt = 1e-5
 fname = open(f"{CASE_DIR}/output.csv", 'w')
 fname.write("time,pressure,volume,wplus,wminus\n")
 store_freq = 1
@@ -92,18 +93,29 @@ out_xml = create_xml_output(CASE_DIR)
 
 t = 0
 step = 0
-try:
-    while t <= t_max:
-        start_time_step = time.time()
-        step += 1
-        t += dt
+while t <= t_max:
+    start_time_step = time.time()
+    step += 1
+    t += dt
+    dV = dt*Q0
 
-        pn = 1e-1
-        
+    try:
+        pn, vol_frac = solve_step_staggered(displacement, phase, history, pressure, dV)
+
+    except RuntimeError:
+        pn, vol_frac = 1, 1
+        write_output(out_xml, displacement.get(), phase.get(), stress.get(), t)
+        logging.error("La presión no converge")
+        break
+
+    except Exception as e:
+        logger.error(f"Simulation stopped due to error: {e}", exc_info=True)
+        break
+
+    finally:
         pnew = phase.get()
         unew = displacement.get()
 
-        vol_frac = compute_fracture_volume(pnew, unew)
         w_plus, w_minus = compute_opening_overtime(unew, pnew, h_elem/20)
         stress.update(pnew, unew)
         
@@ -116,15 +128,10 @@ try:
         if step % store_freq == 0:
             fname.flush()
             # export_phi_to_csv(pnew, mesh, CASE_DIR)
-
         elapsed_time_step = time.time() - start_time_step
         if MPI.COMM_WORLD.rank == 0:
             logger.info(f"Time: {t:.2e}s | Step: {step}")
 
-except Exception as e:
-    logger.error(f"Simulation stopped due to error: {e}", exc_info=True)
-finally:
-    logger.info("Simulation Finished.")
-    if fname:
-        fname.close()
-        logger.info("Closed output CSV file.") 
+if fname:
+    fname.close()
+    logger.info("Closed output CSV file.") 

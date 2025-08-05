@@ -1,23 +1,8 @@
-from dolfin import lhs, rhs, LinearVariationalProblem, LinearVariationalSolver
 import logging
 from scipy.optimize import root_scalar, minimize_scalar, brentq
-import numpy as np
-from .material_model import compute_fracture_volume
+from variational_forms.common import compute_fracture_volume
 
 logger = logging.getLogger(__name__)
-
-def setup_solvers(E_du, E_phi, unew, pnew, bc_u, bc_phi):
-    p_disp = LinearVariationalProblem(lhs(E_du), rhs(E_du), unew, bc_u)
-    p_phi = LinearVariationalProblem(lhs(E_phi), rhs(E_phi), pnew, bc_phi)
-
-    solver_disp = LinearVariationalSolver(p_disp)
-    solver_phi = LinearVariationalSolver(p_phi)
-
-    solver_phi.parameters["linear_solver"] = "gmres"
-    solver_phi.parameters["preconditioner"] = "ilu"
-
-    return solver_disp, solver_phi
-
 
 def pressure_solver(Vtarget, phase, displacement, history, pressure, vol_tol, method='brentq'):
     """

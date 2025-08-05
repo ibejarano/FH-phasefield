@@ -1,17 +1,6 @@
-from dolfin import inner, grad, dx, dot, Measure, Constant, TrialFunction, tr, Identity, sym, dev, Function, assemble
-
-def compute_fracture_volume(phi, u):
-    vol_frac = assemble( inner(grad(phi), -u) * dx )
-    return vol_frac
-
-def epsilon(u):
-    return sym(grad(u))
-
-def sigma(u: TrialFunction, _lambda: float, _mu: float):
-    return _lambda*tr(epsilon(u))*Identity(2) + 2*_mu*epsilon(u)
-
-def psi(u: Function, _lambda: float, _mu: float):
-    return 0.5*(_lambda + _mu)*(0.5*(tr(epsilon(u)) + abs(tr(epsilon(u)))))**2 + _mu*inner(dev(epsilon(u)), dev(epsilon(u)))
+from dolfin import inner, grad, dx, dot, Measure, Constant
+from solvers import pressure_solver
+from variational_forms.common import compute_fracture_volume, sigma, epsilon
 
 def fracture_phasefield_problem(epsilon, sigma_func, H, phase, displacement, data, E_expr, markers):
     nu = data["material_parameters"]["nu"]
@@ -72,3 +61,45 @@ def phase_field_problem(
              - 2.0 * H * q) * dx
 
     return E_du, E_phi, pressure
+
+def compute_pressure(displacement, 
+                     phase, 
+                     history, 
+                     pressure: float, 
+                     vol_target: float, 
+                     method="root_scalar"):
+    
+    ite_p, pn = pressure_solver(
+        Vtarget=vol_target,
+        phase=phase,
+        displacement=displacement,
+        history=history,
+        pressure=pressure,
+        vol_tol=1e-6,
+        method=method
+    )
+
+    return ite_p, pn
+
+def solve_step_staggered(displacement, phase, history, pressure, dV:float, phi_tol=1e-3):
+    err_phi = 1.0
+    outer_ite = 0
+    V0 = compute_fracture_volume(phase.get_old(), displacement.get())
+    vol_target = V0 + dV
+
+    while err_phi > phi_tol:
+        outer_ite += 1
+        ite_p, pn = compute_pressure(displacement, phase, history, pressure, vol_target)
+        if ite_p < 0:
+            raise RuntimeError("Pressure adjustment failed to converge.")
+        err_phi = phase.solve()
+        if outer_ite > 15:
+            raise RuntimeError(f"Outer staggered loop failed to converge (err_phi={err_phi:.2e})")
+
+    displacement.update()
+    phase.update()
+    history.update(displacement.get())
+
+    vol = compute_fracture_volume(phase.get(), displacement.get())
+
+    return pn, vol

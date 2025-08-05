@@ -42,8 +42,21 @@ def setup_bc(phase,
 
     crack_subdomain = create_crack_domain(crack_center, linit, h_elem)
     bc_phi_crack = DirichletBC(V, Constant(1.0), crack_subdomain)
-    bcs_phi.append(bc_phi_crack)
+    # bcs_map = bc_phi_crack.get_boundary_values()
 
+    # bcs_phi.append(bc_phi_crack)
+    # dof_indices = sorted(bcs_map.keys())
+    # print("Dofs afectados:", dof_indices)
+
+    # coords = V.tabulate_dof_coordinates().reshape((-1, mesh.geometry().dim()))
+    # boundary_node_coords = coords[dof_indices]
+
+    # print("Coordenadas de los nodos con DirichletBC:")
+    # for idx, xy in zip(dof_indices, boundary_node_coords):
+    #     print(f"  dof {idx} → {xy}")
+
+
+    bcs_phi.append(bc_phi_crack)
     return bcs_u, bcs_phi
 
 def create_markers(mesh):
