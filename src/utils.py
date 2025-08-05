@@ -1,5 +1,4 @@
 from dolfin import *
-from mpi4py import MPI
 import numpy as np
 import json
 import logging
@@ -155,19 +154,3 @@ def parse_overrides(args):
     return overrides
 
 # ("stress_0"+"stress_4")/2 + sqrt((("stress_0"-"stress_4")/2)^2 + "stress_1"^2)
-
-if __name__ == "__main__":
-    # Ejemplo de uso
-    import matplotlib.pyplot as plt
-    u = lambda x, y: np.array([0, 1/(y**4)])
-    phi = lambda x, y: 0.0 if abs(y) > 0.005 else 1
-
-
-    yp, yn = compute_opening_overtime(u, phi, lelem=0.0001, phi_val=0.5)
-
-    #plt.plot(yp,label="Apertura positiva")
-    #plt.plot(yn, label="Apertura negativa")
-    plt.plot(yp, 1/abs(yp), label="Apertura positiva")
-    plt.plot(yn, 1/abs(yn), label="Apertura negativa")
-    plt.ylim(-1, 100)
-    plt.show()

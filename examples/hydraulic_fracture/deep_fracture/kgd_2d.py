@@ -1,7 +1,9 @@
 import logging
 from dolfin import Mesh
 from mpi4py import MPI
+from dolfin import set_log_level, LogLevel
 import time
+import sys
 
 from variational_forms.phase_field import phase_field_problem, solve_step_staggered
 from boundary_conditions import setup_bc, create_markers
@@ -12,23 +14,33 @@ from fields.stress import StressField
 from output_utils import write_output, create_xml_output
 from utils import compute_opening_overtime, export_phi_to_csv
 
-def setup_logging():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.StreamHandler()
-        ]
+def setup_logging(nombre) -> logging.Logger:
+    logger = logging.getLogger(nombre)
+    logger.setLevel(logging.INFO)
+    
+    # 2. Prepara el handler y el formateador
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%d-%m-%Y %H:%M"
     )
+    handler.setFormatter(formatter)
+    
+    # 3. Sustituye cualquier handler existente para evitar duplicados
+    logger.handlers = [handler]
+    return logger
 
-setup_logging()
+logger = setup_logging("Deep Fracture")
+set_log_level(LogLevel.ERROR)
 
-CASE_DIR = "output"
+if len(sys.argv) == 2:
+    CASE_DIR = sys.argv[1]
+else:
+    CASE_DIR = "output"
 
-logger = logging.getLogger(__name__)
 logger.info("Setting up the simulation problem...")
 
-RELACION_HL = 3 # el parametro de transicion l_c cubre minimamente 3 elementos de la malla
+RELACION_HL = 4 # el parametro de transicion l_c cubre minimamente 3 elementos de la malla
 ## MESHING ##
 comm = MPI.COMM_WORLD
 mesh = Mesh(comm, f"{CASE_DIR}/deep_fh.xml")
@@ -50,15 +62,15 @@ phase = PhaseField(mesh)
 stress = StressField(mesh, lmbda, mu)
 
 # Phasefield params
-l_init = 10e-3
 h_elem = mesh.hmin()
 l_c = h_elem * RELACION_HL
+l_init = l_c * 2.5
 
 # Solver params
-p_init = 10000 # Presion inicial
+p_init = 1000 # Presion inicial
 
 # Boundary Conditions
-bcs_u, bcs_phi = setup_bc(phase, displacement, l_init, h_elem*2)
+bcs_u, bcs_phi = setup_bc(phase, displacement, l_init, h_elem)
 
 markers = create_markers(mesh)
 
@@ -72,22 +84,25 @@ E_du, E_phi, pressure = phase_field_problem(
 # Setup solvers
 displacement.setup_solver(E_du, bcs_u)
 phase.setup_solver(E_phi, bcs_phi)
+phase.solve()
 
 logger.info("Problem setup complete.")
 
-
 logger.info("--- Starting Simulation ---")
+
+# Solve to phase
+
 saved_vtus = 0
 progress = 0
 size = MPI.COMM_WORLD.Get_size()
 
 # Parametros de simulacion
-t_max = 1e-4
-dt = 1e-5
+t_max = 1e-2
+dt = 2.5e-5
 fname = open(f"{CASE_DIR}/output.csv", 'w')
 fname.write("time,pressure,volume,wplus,wminus\n")
-store_freq = 1
-output_freq = 1
+store_freq = 5 # escribir vtk cada n-step
+output_freq = 5 # Flush output cada n-step
 
 out_xml = create_xml_output(CASE_DIR)
 
@@ -113,16 +128,19 @@ while t <= t_max:
         break
 
     finally:
-        pnew = phase.get()
-        unew = displacement.get()
 
-        w_plus, w_minus = compute_opening_overtime(unew, pnew, h_elem/20)
-        stress.update(pnew, unew)
+        if MPI.COMM_WORLD.size == 1:
+            w_plus, w_minus = compute_opening_overtime(displacement.get(), phase.get(), h_elem/20)
+            
+        else:
+            w_plus, w_minus = 0, 0
+
+        stress.update(phase.get(), displacement.get())
         
         fname.write(f"{t},{pn},{vol_frac},{w_plus},{w_minus}\n")
 
         if step % output_freq == 0:
-            write_output(out_xml, unew, pnew, stress.get(), t)
+            write_output(out_xml, displacement.get(), phase.get(), stress.get(), t)
             saved_vtus += 1
         
         if step % store_freq == 0:

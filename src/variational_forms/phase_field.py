@@ -1,36 +1,10 @@
-from dolfin import inner, grad, dx, dot, Measure, Constant
-from solvers import pressure_solver
+from dolfin import inner, grad, dx, Constant
 from variational_forms.common import compute_fracture_volume, sigma, epsilon
+from scipy.optimize import root_scalar
 
-def fracture_phasefield_problem(epsilon, sigma_func, H, phase, displacement, data, E_expr, markers):
-    nu = data["material_parameters"]["nu"]
-    Gc = data["material_parameters"]["Gc"]
-    l = data["aspect_hl"] * data["meshing_parameters"]["h"]
-    p_init = data.get("p_init", 100.0)
-    pxx = data["px"]
+import logging
 
-    pressure = Constant(p_init)
-    ds = Measure("ds", subdomain_data=markers)
-    px_vec = Constant((pxx, 0.0))
-
-
-    p = phase.get_trialfunction()
-    q = phase.get_testfunction()
-    u = displacement.get_trialfunction()
-    v = displacement.get_testfunction()
-    pold = phase.get_old()
-
-    sigma = sigma_func(u, E_expr, nu)
-
-    E_du = (1 - pold)**2 * inner(epsilon(v), sigma) * dx \
-           + pressure * inner(v, grad(pold)) * dx \
-           + dot(px_vec, v) * ds(20) - dot(px_vec, v) * ds(10)
-
-    E_phi = (Gc * l * inner(grad(p), grad(q)) \
-             + ((Gc / l) + 2.0 * H) * inner(p, q) \
-             - 2.0 * H * q) * dx
-
-    return E_du, E_phi, pressure
+logger = logging.getLogger(__name__)
 
 def phase_field_problem(
         phase,
@@ -103,3 +77,63 @@ def solve_step_staggered(displacement, phase, history, pressure, dV:float, phi_t
     vol = compute_fracture_volume(phase.get(), displacement.get())
 
     return pn, vol
+
+
+def pressure_solver(Vtarget, phase, displacement, history, pressure, vol_tol, method='root_scalar'):
+    """
+    Solve for pressure using scipy optimization methods.
+    
+    Args:
+        method: 'brentq', 'root_scalar', 'minimize_scalar', or 'secant' (original method)
+    """
+    
+    def objective_function(pn):
+        """Objective function: difference between target and computed volume"""
+        pressure.assign(pn)
+        displacement.solve()
+        unew = displacement.get()
+        history.update(unew)
+        
+        VK = compute_fracture_volume(phase.get_old(), unew)
+        return Vtarget - VK
+    
+    def volume_function(pn):
+        """Volume function for root finding"""
+        pressure.assign(pn)
+        displacement.solve()
+        unew = displacement.get()
+        history.update(unew)
+        
+        return compute_fracture_volume(phase.get_old(), unew)
+    
+    # Initial pressure estimate
+    pn_initial = float(pressure)
+    
+    try:
+
+        # General root finding with different methods
+        result = root_scalar(
+            lambda p: volume_function(p) - Vtarget,
+            x0=pn_initial,
+            x1=pn_initial * 1.1,  # Second guess for secant method
+            method='secant',
+            xtol=vol_tol,
+            maxiter=50
+        )
+        pn = result.root
+        iterations = result.iterations
+            
+
+        # Final check
+        final_error = abs(objective_function(pn)) / (abs(Vtarget) if abs(Vtarget) > 1e-15 else 1.0)
+
+        if final_error > vol_tol:
+            logger.warning(f"Method {method} converged with error {final_error:.2e} > {vol_tol:.2e}")
+            return -1, pn
+        
+        logger.debug(f"Pressure solver ({method}) converged in {iterations} iterations")
+        return iterations, pn
+        
+    except Exception as e:
+        logger.error(f"Pressure solver ({method}) failed: {e}")
+        return -1, pn_initial
