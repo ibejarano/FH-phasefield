@@ -1,5 +1,5 @@
 {
-    "case_type": "deep",
+    "case_type": "shallow",
     "description": "GMSH mesh case",
     "pressure_solver_method": "root_scalar",
     "symmetric": true,
@@ -10,17 +10,17 @@
         "Qo": 2e-3
     },
     "meshing_parameters": {
-        "file_name": "plane_sym",
+        "file_name": "curving_sym",
         "h": 1e-3,
         "h_coarse": 8e0,
-        "l_max": 0.2,
-        "H": 3
+        "l_max": 0.3,
+        "H": 0.3
     },
     "aspect_hl": 3,
     "px": 1000,
     "solver_parameters": {
         "dt": 2e-5,
-        "t_max": 0.09,
+        "t_max": 0.06,
         "tolerances":{
             "volume": 1e-6,
             "phi": 1e-3
@@ -31,5 +31,5 @@
         "l0": 0.005,
         "w0": 0.5e-3
     },
-    "output_frequency": 1
+    "output_frequency": 200
 }

@@ -1,10 +1,48 @@
 from dolfin import *
-from mpi4py import MPI
 import numpy as np
 import json
 import logging
 
 logger = logging.getLogger(__name__)
+
+def setup_logging(nombre) -> logging.Logger:
+    logger = logging.getLogger(nombre)
+    logger.setLevel(logging.INFO)
+    
+    # 2. Prepara el handler y el formateador
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%d-%m-%Y %H:%M"
+    )
+    handler.setFormatter(formatter)
+    
+    # 3. Sustituye cualquier handler existente para evitar duplicados
+    logger.handlers = [handler]
+    return logger
+
+def export_phi_to_csv(phi, mesh, output_dir):
+    coordenadas = mesh.coordinates()
+    valores_phi = phi.compute_vertex_values(mesh)
+
+    # 1 Obtenemos los indices donde phi es igual a 1
+    indices = np.where(np.greater_equal(valores_phi, 0.5))
+
+    coordenadas_filtradas = coordenadas[indices]
+
+    nombre_archivo = output_dir / "output_coords.csv"
+    csv_header = "x,y" if mesh.geometry().dim() == 2 else "x,y,z"
+
+    np.savetxt(
+        nombre_archivo,
+        coordenadas_filtradas,
+        delimiter=",",
+        header=csv_header,
+        comments=''
+    )
+
+    logger.info(f"Coordenadas maximas X:{coordenadas_filtradas[:,0].max():.1e} Y:{coordenadas_filtradas[:,1].max():.1e}")
+
 
 def fracture_length(phi, x1=-1, x2=1, y=0.0, npoints=5000, cutoff=0.6):
     """
@@ -105,7 +143,7 @@ def compute_opening_overtime(uvec, phivec, lelem, x= 0.0, phi_val=0.5):
     return w_plus_value, w_minus_value
 
 def read_data(fname, overrrides=None):
-    with open(f"data/{fname}.json", "r") as f:
+    with open(fname, "r") as f:
         data = json.load(f)
 
 
@@ -132,19 +170,3 @@ def parse_overrides(args):
     return overrides
 
 # ("stress_0"+"stress_4")/2 + sqrt((("stress_0"-"stress_4")/2)^2 + "stress_1"^2)
-
-if __name__ == "__main__":
-    # Ejemplo de uso
-    import matplotlib.pyplot as plt
-    u = lambda x, y: np.array([0, 1/(y**4)])
-    phi = lambda x, y: 0.0 if abs(y) > 0.005 else 1
-
-
-    yp, yn = compute_opening_overtime(u, phi, lelem=0.0001, phi_val=0.5)
-
-    #plt.plot(yp,label="Apertura positiva")
-    #plt.plot(yn, label="Apertura negativa")
-    plt.plot(yp, 1/abs(yp), label="Apertura positiva")
-    plt.plot(yn, 1/abs(yn), label="Apertura negativa")
-    plt.ylim(-1, 100)
-    plt.show()

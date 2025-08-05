@@ -7,55 +7,56 @@ def create_crack_domain(center, l0, w0):
             return abs(x[0] - center[0]) <= l0 and abs(x[1] - center[1]) <= w0
     return CrackDomain()
 
-def setup_boundary_conditions(phase, displacement, boundary_markers, data):
+
+def setup_bc(phase, 
+                  displacement, 
+                  linit: float,
+                  h_elem: float,
+                  crack_center= [0, 0],
+                  upper_face_free = False,
+                  symmetric = False):
+
     V = phase.V
     W = displacement.V
+    mesh = W.mesh()
+
     bcs_u = []
     bcs_phi = []
-    bc_config = data.get("boundary_conditions", {}) # Leer config del JSON
 
-    for marker_id, bc_data in bc_config.get("displacement", {}).items():
-        value = bc_data.get("value", [0.0, 0.0]) # Valor por defecto
-        # value = [None if v == "None" else v for v in value]
-        for i, v in enumerate(value):
-            if v != "None" and v is not None:
-                bc = DirichletBC(W.sub(i), Constant(v), boundary_markers, int(marker_id))
-                bcs_u.append(bc)
-
-    crack_config = bc_config.get("initial_crack", {})
-    if crack_config:
-        center = crack_config.get("center", [0.0, 0.0])
-        l0 = crack_config.get("l0", data.get("linit", 0.0)) # Usar linit si no está especificado aquí
-        w0 = crack_config.get("w0", data.get("h", 0.0))     # Usar h si no está especificado aquí
-        crack_subdomain = create_crack_domain(center, l0, w0)
-        bc_phi_crack = DirichletBC(V, Constant(1.0), crack_subdomain)
-        bcs_phi.append(bc_phi_crack)
-
-    return bcs_u, bcs_phi
-
-def setup_shallow_bc(phase, displacement, data):
-    V = phase.V
-    W = displacement.V
-    bcs_u = []
-    bcs_phi = []
-    Hinf = data.get("Hinf", None) 
-    assert Hinf is not None, "Hinf must be defined in data"
+    def upper_side(x, on_boundary):
+        return near(x[1], mesh.coordinates()[:, 1].max())
 
     def bottom_side(x, on_boundary):
-        return near(x[1], Hinf)
+        return near(x[1], mesh.coordinates()[:, 1].min())
 
     bc_bottom = DirichletBC(W, Constant((0.0, 0.0)), bottom_side)
     bcs_u.append(bc_bottom)
 
-    crack_config = data.get("initial_crack", {})
-    if crack_config:
-        center = crack_config.get("center", [0.0, 0.0])
-        l0 = crack_config.get("l0", data.get("linit", 0.0)) # Usar linit si no está especificado aquí
-        w0 = crack_config.get("w0", data.get("h", 0.0))     # Usar h si no está especificado aquí
-        crack_subdomain = create_crack_domain(center, l0, w0)
-        bc_phi_crack = DirichletBC(V, Constant(1.0), crack_subdomain)
-        bcs_phi.append(bc_phi_crack)
+    if not upper_face_free:
+        bc_upper = DirichletBC(W, Constant((0.0, 0.0)), upper_side)
+        bcs_u.append(bc_upper)
 
+    if symmetric:
+        bc_symmetry = setup_symmetric_bc(displacement)
+        bcs_u.append(bc_symmetry)
+
+    crack_subdomain = create_crack_domain(crack_center, linit, h_elem)
+    bc_phi_crack = DirichletBC(V, Constant(1.0), crack_subdomain)
+    # bcs_map = bc_phi_crack.get_boundary_values()
+
+    # bcs_phi.append(bc_phi_crack)
+    # dof_indices = sorted(bcs_map.keys())
+    # print("Dofs afectados:", dof_indices)
+
+    # coords = V.tabulate_dof_coordinates().reshape((-1, mesh.geometry().dim()))
+    # boundary_node_coords = coords[dof_indices]
+
+    # print("Coordenadas de los nodos con DirichletBC:")
+    # for idx, xy in zip(dof_indices, boundary_node_coords):
+    #     print(f"  dof {idx} → {xy}")
+
+
+    bcs_phi.append(bc_phi_crack)
     return bcs_u, bcs_phi
 
 def create_markers(mesh):
@@ -76,3 +77,16 @@ def create_markers(mesh):
     left.mark(markers, 10)
     right.mark(markers, 20)
     return markers
+
+def setup_symmetric_bc(displacement):
+    """
+    Configura condiciones de frontera para simetría en x=0 (u_x=0).
+    """
+    W = displacement.V
+
+    def symmetry_plane(x, on_boundary):
+        return on_boundary and near(x[0], 0.0)
+
+    # u_x = 0 en x=0 (plano de simetría)
+    bc_symmetry = DirichletBC(W.sub(0), Constant(0.0), symmetry_plane)
+    return bc_symmetry

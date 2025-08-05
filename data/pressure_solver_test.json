@@ -1,0 +1,36 @@
+{
+    "name": "pressure_solver_test",
+    "case_type": "shallow",
+    "description": "Test case for SciPy-based pressure solver",
+    "material_parameters": {
+        "E": 2e8,
+        "nu": 0.3,
+        "Gc": 2.7,
+        "Qo": 2e-3
+    },
+    "solver_parameters": {
+        "dt": 10e-5,
+        "t_max": 1.0,
+        "tolerances": {
+            "volume": 1e-5,
+            "phi": 0.5e-3
+        }
+    },
+    "aspect_hl": 3,
+    "px": 1000,
+    "pressure_solver_method": "brentq",
+    "meshing_parameters": {
+        "file_name": "curving_H",
+        "h": 1e-3,
+        "h_coarse": 8e0,
+        "l_max": 0.2,
+        "H": 10,
+        "Hinf": -10
+    },
+    "initial_crack": {
+        "center": [0.0, 0.0],
+        "l0": 0.0075,
+        "w0": 0.5e-3
+    },
+    "output_frequency": 500
+} 
