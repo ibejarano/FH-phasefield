@@ -15,18 +15,18 @@ def reemplazar_H(ruta_geo: str,  Lcrack: float, H_nuevo: float = None, beta_nuev
         for linea in lineas:
             if linea.lstrip().startswith("H ="):
                 # Conservamos el mismo formato: "H = <valor>;"
-                if H_nuevo:
+                if H_nuevo is not None:
                     f.write(f"H = {H_nuevo};\n")
 
             elif linea.lstrip().startswith("beta_angle ="):
-                if beta_nuevo:
+                if beta_nuevo is not None:
                     f.write(f"beta_angle = {beta_nuevo};\n")
             elif linea.lstrip().startswith("Lcrack ="):
                 f.write(f"Lcrack = {Lcrack};\n")
             else:
                 f.write(linea)
 
-def run_gmsh(mesh_name: str, Lcrack:float , H_prof = None, beta = None , mesh=True):
+def run_gmsh(mesh_name: str, Lcrack=None , H_prof = None, beta = None , mesh=True):
     if mesh:
         reemplazar_H(f"{mesh_name}.geo", Lcrack, H_prof, beta)
         cmd_mallado = ["gmsh", "-2", f"{mesh_name}.geo", "-format", "msh2", "-o", f"{mesh_name}.msh"] 
@@ -54,7 +54,7 @@ def run_shallow_case(H_prof: float,
     np.seterr(divide='raise')
 
     mesh_name = geo_name.split('.geo')[0]
-    mesh, boundaries = run_gmsh(mesh_name, H_prof, beta, Lcrack, mesh=mesh)
+    mesh, boundaries = run_gmsh(mesh_name, Lcrack=Lcrack, H_prof=H_prof, beta=beta, mesh=mesh)
 
     check_H_sup = np.max(mesh.coordinates()[:, 1])
 
@@ -95,6 +95,106 @@ def run_shallow_case(H_prof: float,
     beta_rad = np.deg2rad(beta)
     xs = np.linspace(Lcrack*0.75*np.cos(beta_rad), Lcrack*np.cos(beta_rad), npoints)
     ys = np.linspace(Lcrack*0.75*np.sin(beta_rad), Lcrack*np.sin(beta_rad), npoints)
+
+    uplus_res = np.zeros((npoints, 2))
+    uminus_res = np.zeros((npoints, 2))
+    KI_calc = np.zeros(npoints)
+    KII_calc = np.zeros(npoints)
+
+    r_crack = np.zeros(npoints)
+    d_offset = tol
+    if save_vtu:
+        file = File('shallow_lateral.pvd')
+        file << u_sol
+    for i, (x, y) in enumerate(zip(xs, ys)):
+        U = u_sol(x-d_offset, y+d_offset)
+        Un = (U[1] * cos(beta_rad) - U[0] * sin(beta_rad))
+        Ut = (U[0] * cos(beta_rad) + U[1] * sin(beta_rad))
+
+        uplus_res[i] = [Ut, Un]
+
+        V = u_sol(x+d_offset, y-d_offset)
+        Vn = (V[1] * cos(beta_rad) - V[0] * sin(beta_rad))
+        Vt = (V[0] * cos(beta_rad) + V[1] * sin(beta_rad))
+
+        uminus_res[i] = [Vt, Vn]
+
+        try:
+            r_crack[i] = Lcrack -  np.sqrt(x**2 + y**2)
+            KI_calc[i] = factor * abs(Un - Vn)/np.sqrt(r_crack[i])
+            KII_calc[i] = factor * abs(Ut - Vt)/np.sqrt(r_crack[i])
+        except FloatingPointError:
+            r_crack[i] = 0
+            KI_calc[i] = 0
+            KII_calc[i] = 0
+
+    calc_KI = np.max(KI_calc)/rel_KI
+    calc_KII = np.max(KII_calc)/rel_KI
+    #K_calcs[j] = [calc_KI, calc_KII]
+    us = u_sol(0, check_H_sup)[1]
+    up = u_sol(0, d_offset)[1]
+    um = u_sol(0, -d_offset)[1]
+
+
+    return [calc_KI, calc_KII], [us, up, um]
+
+def run_shallow_case_symm(H_prof: float, 
+                     p1: float, 
+                     pxx: float,
+                     Lcrack: float,
+                     E: float,
+                     nu:float,
+                     beta: float = 0,
+                     geo_name="shallow.geo", 
+                     save_vtu=False,
+                     tol= 1e-5,
+                     mesh=True):
+    from dolfin import ds
+    np.seterr(divide='raise')
+
+    mesh_name = geo_name.split('.geo')[0]
+    mesh, boundaries = run_gmsh(mesh_name, Lcrack=Lcrack, H_prof=H_prof, beta=beta, mesh=mesh)
+
+    check_H_sup = np.max(mesh.coordinates()[:, 1])
+
+    print(f"Simulando caso: {check_H_sup:.4f} (malla) {H_prof:.4f} (dato) mts. profundidad")
+
+    V = VectorFunctionSpace(mesh, "P", 2)
+
+    bc_axis_y = DirichletBC(V.sub(0), Constant(0), boundaries, 1) # 1 es el tag de la cara izquierda
+    bc_bottom = DirichletBC(V.sub(1), Constant(0), boundaries, 2)
+    bcs = [bc_bottom, bc_axis_y]
+
+
+    mu = E / (2 * (1 + nu))
+
+    lmbda = E*nu / ((1 + nu)*(1 - 2*nu))
+    # lmbda = 2 * mu * lmbda / (lmbda + 2 * mu)
+
+    ds = Measure("ds", domain=mesh, subdomain_data=boundaries)
+    u = TrialFunction(V)
+    v = TestFunction(V)
+
+    a = elastic_energy_funcional(u, v, lmbda, mu)
+
+    n = FacetNormal(mesh)
+    lateral_compression = Constant((pxx, 0.0))
+    L_form  = - dot(p1*n, v)*ds(10) - dot(p1*n, v)*ds(11)
+    L_form -= dot(lateral_compression, v)*ds(3)
+    u_sol = Function(V, name="desplazamientos")
+    solve(a == L_form, u_sol, bcs)
+
+    # INICIO DEL POSTPROCESO
+    kappa = 3 - 4 *nu # Plane - strain 
+    # kappa = (3 - nu)/(1+nu) # Plane - stress
+    factor = np.sqrt(2 * np.pi) * mu / (1+kappa)
+    rel_KI = (p1 * np.sqrt(np.pi * Lcrack))
+
+    npoints = 800
+
+    beta_rad = np.deg2rad(beta)
+    xs = np.linspace(Lcrack*0.9*np.cos(beta_rad), Lcrack*np.cos(beta_rad), npoints)
+    ys = np.linspace(Lcrack*0.9*np.sin(beta_rad), Lcrack*np.sin(beta_rad), npoints)
 
     uplus_res = np.zeros((npoints, 2))
     uminus_res = np.zeros((npoints, 2))
