@@ -1,9 +1,9 @@
 // Define points of the rectangle
 Lx = 10;
-H = 10.0;
+H = 0.25;
 Ly = 10;
-Lcrack = 0.05;
-beta_angle = 0;
+Lcrack = 0.75;
+beta_angle = 12;
 beta_rad = beta_angle * Pi/180 ;
 x1 = Cos(beta_rad) * Lcrack ;
 y1 = Sin(beta_rad) * Lcrack ;
@@ -11,7 +11,7 @@ y1 = Sin(beta_rad) * Lcrack ;
 lc = 0.3;
 dist_min = 0.02;
 dist_max = 0.6;
-refinement_ratio = 800;
+refinement_ratio = 400;
 
 Point(1) = {-Lx, -Ly, 0, lc};
 Point(2) = {Lx, -Ly, 0, lc};
