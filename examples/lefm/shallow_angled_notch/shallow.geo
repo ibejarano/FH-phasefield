@@ -3,7 +3,7 @@ Lx = 10;
 H = 10.0;
 Ly = 10;
 Lcrack = 0.05;
-beta_angle = 0;
+beta_angle = 25;
 beta_rad = beta_angle * Pi/180 ;
 x1 = Cos(beta_rad) * Lcrack ;
 y1 = Sin(beta_rad) * Lcrack ;
@@ -11,7 +11,7 @@ y1 = Sin(beta_rad) * Lcrack ;
 lc = 0.3;
 dist_min = 0.02;
 dist_max = 0.6;
-refinement_ratio = 800;
+refinement_ratio = 500;
 
 Point(1) = {-Lx, -Ly, 0, lc};
 Point(2) = {Lx, -Ly, 0, lc};
