@@ -93,7 +93,7 @@ for j, H_prof in enumerate(casos):
     rel_KI = (p1 * np.sqrt(np.pi * Lcrack))
 
 
-    npoints = 200
+    npoints = 500
 
     beta_rad = np.deg2rad(beta)
     xs = np.linspace(Lcrack*0.75*np.cos(beta_rad), Lcrack*np.cos(beta_rad), npoints)
@@ -105,7 +105,7 @@ for j, H_prof in enumerate(casos):
     KII_calc = np.zeros(npoints)
 
     r_crack = np.zeros(npoints)
-    d_offset = 1e-5
+    d_offset = 1e-6
 
     for i, (x, y) in enumerate(zip(xs, ys)):
         U = u_sol(x-d_offset, y+d_offset)

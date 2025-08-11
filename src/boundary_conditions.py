@@ -1,4 +1,4 @@
-from dolfin import DirichletBC, SubDomain, Constant, near, MeshFunction
+from dolfin import DirichletBC, SubDomain, Constant, near, MeshFunction, Mesh
 
 def create_crack_domain(center, l0, w0):
     class CrackDomain(SubDomain):
@@ -59,7 +59,7 @@ def setup_bc(phase,
     bcs_phi.append(bc_phi_crack)
     return bcs_u, bcs_phi
 
-def create_markers(mesh):
+def create_markers(mesh: Mesh, left_mark: int =10, right_mark: int =20):
     markers = MeshFunction("size_t", mesh, mesh.topology().dim() - 1)
     markers.set_all(0)
 
@@ -74,8 +74,8 @@ def create_markers(mesh):
     left = LeftBoundary()
     right = RightBoundary()
 
-    left.mark(markers, 10)
-    right.mark(markers, 20)
+    left.mark(markers, left_mark)
+    right.mark(markers, right_mark)
     return markers
 
 def setup_symmetric_bc(displacement):

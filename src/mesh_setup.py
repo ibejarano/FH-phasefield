@@ -1,17 +1,8 @@
-# === Módulo de configuración de malla y espacios funcionales ===
-from dolfin import Mesh
-from os import path
-from mpi4py import MPI
 from sys import argv
 import os
 import subprocess
 from src.utils import read_data
 import logging
-
-def setup_gmsh(mesh_file_xml):
-    comm = MPI.COMM_WORLD
-    mesh = Mesh(comm, mesh_file_xml)
-    return mesh
 
 # Configuración básica de logging
 logging.basicConfig(
