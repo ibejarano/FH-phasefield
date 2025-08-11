@@ -2,7 +2,7 @@
 Lx = 1;
 Ly = 2;
 
-Lcrack = 0.2;
+Lcrack = 0.025;
 lc = 0.2;
 dist_min = 0.02;
 dist_max = 0.3;

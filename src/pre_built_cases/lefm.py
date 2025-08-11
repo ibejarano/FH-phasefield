@@ -28,7 +28,7 @@ def reemplazar_H(ruta_geo: str,  Lcrack: float, H_nuevo: float = None, beta_nuev
 
 def run_gmsh(mesh_name: str, Lcrack:float , H_prof = None, beta = None , mesh=True):
     if mesh:
-        reemplazar_H(f"{mesh_name}.geo", H_prof, beta, Lcrack)
+        reemplazar_H(f"{mesh_name}.geo", Lcrack, H_prof, beta)
         cmd_mallado = ["gmsh", "-2", f"{mesh_name}.geo", "-format", "msh2", "-o", f"{mesh_name}.msh"] 
         subprocess.run(cmd_mallado, check=True)
         cmd_xml_transformer = ["dolfin-convert" ,f"{mesh_name}.msh", f"{mesh_name}.xml"]
@@ -170,13 +170,12 @@ def run_left_notch(
     lmbda = E*nu / ((1 + nu)*(1 - 2*nu))
     #lmbda = 2 * mu * lmbda / (lmbda + 2 * mu)
 
-    ds = ds(subdomain_data=boundaries)
+    ds = Measure("ds", subdomain_data=boundaries)
     u = TrialFunction(V)
     v = TestFunction(V)
 
     a = elastic_energy_funcional(u, v, lmbda, mu)
 
-    p1 = 183e6*0.02
 
     upper_traction = Constant((0.0, p1))
     L_form  = dot(upper_traction, v)*ds(4) - dot(upper_traction, v)*ds(2)
@@ -207,9 +206,7 @@ def run_left_notch(
     KI_est = np.zeros(npoints)
     KII_est = np.zeros(npoints)
 
-    print("xs, r , DU")
     for i, r_x in enumerate(r):
-        #print(xs[i], r_x, dU[i])
         KI_est[i] = factor * np.sqrt(1/r_x) * dU[i]
         KII_est[i] = factor * np.sqrt(1/r_x) * dV[i]
 
