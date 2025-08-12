@@ -1,9 +1,72 @@
 import subprocess
 from math import sin, cos
 from dolfin import *
-import numpy as np
-
+import numpy as np, math
 from variational_forms.linear_static import elastic_energy_funcional
+
+def dem_KI_axisym(u, a, mu, nu, tip_z=0.0,
+                  rho_min_frac=0.02, rho_max_frac=0.10, npts=10,
+                  half_model=True, p=None):
+    """
+    DEM (displacement extrapolation) para K_I en penny-shaped axisimétrico.
+
+    Parámetros
+    ----------
+    u : Function (Vector, 2D)   Desplazamiento resuelto (u_r, u_z)
+    a : float                   Radio de la grieta
+    mu: float                   Módulo cortante (G=μ)
+    nu: float                   Poisson
+    tip_z : float               Coordenada z del frente (típicamente 0.0)
+    rho_min_frac, rho_max_frac  Rango de muestreo en [ρ_min, ρ_max] = [f_min*a, f_max*a]
+    npts : int                  Nº de puntos en el ajuste lineal
+    half_model : bool           Si usaste media placa (simetría), toma Δu=2*u_z
+    p : float or None           Si lo das, devuelve también F = K_I/(p*sqrt(pi*a))
+
+    Devuelve
+    --------
+    out : dict con keys {'a0','KI','F'(opcional),'samples'}
+    """
+    mesh = u.function_space().mesh()
+    # Constantes
+    kappa = 3.0 - 4.0*nu
+    eps_z = 1e-8*max(1.0, float(a))  # pequeño desplazamiento por encima de z=0
+
+    # Construir muestreo de distancias ρ y puntos r = a - ρ
+    rhos = np.linspace(rho_min_frac*a, rho_max_frac*a, npts)
+    rs   = a - rhos
+
+    uz_vals = []
+    for r_i in rs:
+        try:
+            uz = u(Point(float(r_i), float(tip_z + eps_z)))[1]
+        except Exception:
+            # Si cae justo fuera de un elemento, mover un pelo hacia adentro
+            uz = u(Point(float(r_i - 1e-12), float(tip_z + eps_z)))[1]
+        uz_vals.append(uz)
+
+    uz_vals = np.array(uz_vals)
+    # Apertura (Δu) en media placa ~ 2 * u_z (normal a la grieta)
+    if half_model:
+        delta_u = 2.0*uz_vals
+    else:
+        # en modelo completo necesitarías u_z^+ - u_z^- (no implementado aquí)
+        delta_u = 2.0*uz_vals
+
+    y = delta_u / np.sqrt(rhos)                # y = Δu / sqrt(ρ)
+    # Ajuste lineal y(ρ) = a0 + b ρ
+    coeffs = np.polyfit(rhos, y, 1)
+    b, a0 = coeffs[0], coeffs[1]
+
+    # K_I = (μ * sqrt(2π)/(κ+1)) * a0
+    KI = (mu * math.sqrt(2.0*math.pi) / (kappa + 1.0)) * a0
+
+    out = {"a0": float(a0), "KI": float(KI),
+           "samples": {"rho": rhos, "delta_u": delta_u, "y": y, "fit": {"a0": a0, "b": b}}}
+
+    if p is not None and a > 0.0:
+        F = KI / (p * math.sqrt(math.pi * a))
+        out["F"] = float(F)
+    return out
 
 def reemplazar_H(ruta_geo: str,  Lcrack: float, H_nuevo: float = None, beta_nuevo: float = None) -> None:
     # Leer todas las líneas
@@ -237,6 +300,95 @@ def run_shallow_case_symm(H_prof: float,
 
 
     return [calc_KI, calc_KII], [us, up, um]
+
+
+def run_shallow_axisym(H_prof: float, 
+                     p1: float, 
+                     pxx: float,
+                     Lcrack: float,
+                     E: float,
+                     nu:float,
+                     beta: float = 0,
+                     geo_name="shallow.geo", 
+                     save_vtu=False,
+                     tol= 1e-5,
+                     mesh=True):
+    from dolfin import ds
+    import ufl
+
+    pi = 3.14159
+    np.seterr(divide='raise')
+
+    mesh_name = geo_name.split('.geo')[0]
+    mesh, boundaries = run_gmsh(mesh_name, Lcrack=Lcrack, H_prof=H_prof, mesh=mesh)
+
+    check_H_sup = np.max(mesh.coordinates()[:, 1])
+
+    print(f"Simulando caso: {check_H_sup:.4f} (malla) {H_prof:.4f} (dato) mts. profundidad")
+
+    # TODO: Por el momento func de interp orden 1 para testear
+    V = VectorFunctionSpace(mesh, "P", 2)
+    ds = Measure("ds", domain=mesh, subdomain_data=boundaries)
+    u = TrialFunction(V)
+    v = TestFunction(V)
+    u_sol = Function(V, name="u")
+
+    # Material isotropico 
+    E  = Constant(E)
+    nu = Constant(nu)
+    mu = E/(2.0*(1.0+nu))
+    lmbda = E*nu/((1.0+nu)*(1.0-2.0*nu))
+    # coordenada radial
+    x = SpatialCoordinate(mesh)
+    r = x[0]
+    eps_r = Constant(1e-12)          # "regularización" suave
+    r_safe = ufl.sqrt(r*r + eps_r*eps_r)   # continuo y evita r=0 en denominador
+    I3 = Identity(3)
+
+    # Deformación axisimétrica (3x3) construida desde (u_r,u_z)
+    def eps_axisym(w):
+        # w es vectorial: (u_r, u_z)
+        G = ufl.grad(w)              # 2x2: [[∂u_r/∂r, ∂u_r/∂z],
+                                    #       [∂u_z/∂r, ∂u_z/∂z]]
+        e_rr = G[0, 0]
+        e_zz = G[1, 1]
+        e_rz = 0.5*(G[0, 1] + G[1, 0])
+        e_tt = w[0] / r_safe         # ε_θθ = u_r / r
+
+        E = ufl.as_tensor([[e_rr, 0.0,  e_rz],
+                        [0.0,  e_tt, 0.0 ],
+                        [e_rz, 0.0,  e_zz]])
+        return E
+
+    def sigma_axisym(w):
+        E = eps_axisym(w)
+        trE = ufl.tr(E)
+        return 2.0*mu*E + lmbda*trE*I3
+
+    # Cargas de volumen/contorno (opcionales)
+    b = Constant((0.0, 0.0))  # cuerpo [N/m^3] (ya 3D)
+    t = Constant((0.0, p1))  # tracción axisimétrica [Pa]
+
+    # Peso axisimétrico: 2π r
+    weight = 2.0*pi*r_safe
+
+    a = ufl.inner(sigma_axisym(u), eps_axisym(v)) * weight * dx
+    L = dot(t, v)* weight * ds(10) - ufl.dot(t, v) * weight * ds(11) +  (ufl.dot(b, v) * weight * dx)
+    axis = CompiledSubDomain("near(x[0], 0.0)")
+
+    bc_axis = DirichletBC(V.sub(0), Constant(0.0), axis)
+    bc_bottom = DirichletBC(V.sub(1), Constant(0), boundaries, 2)
+    bcs = [bc_bottom, bc_axis]
+
+    solve(a == L, u_sol, bcs, solver_parameters={"linear_solver": "mumps"})
+
+    out = dem_KI_axisym(u_sol, Lcrack, mu, nu, half_model=False, p=p1)
+
+    if save_vtu:
+        file = File('axisym.pvd')
+        file << u_sol
+
+    return out
 
 
 def run_left_notch(
