@@ -3,8 +3,8 @@ from pre_built_cases.lefm import run_shallow_case_symm
 
 
 # Vamos a editar el geo antes de simular
-H = 5
-E = 164.3e9
+H = 0.07
+E = 164.3e6
 nu = 0.32
 esp = 0.02
 p1 = 183e6*esp # Presion interna
@@ -13,7 +13,7 @@ pxx = 0
 
 ratios_casos = [0]#, 0.2, 0.5, 1, 2, 5]
 # casos_H = np.geomspace(0.1, 10, 30)
-a_cracks = np.geomspace(H/100, H*5, 40)
+a_cracks = np.geomspace(H/10, H*5, 50)
 a_crack = H / 100
 
 #[KI, KII], [us, up, um] = run_shallow_case_symm(H, p1, pxx, a_crack, E=E, nu=nu, beta=beta, geo_name="sym_shallow.geo", save_vtu=True, mesh=True)
@@ -26,7 +26,8 @@ for i, ratio in enumerate(ratios_casos):
     us_arr = np.zeros(len(a_cracks))
     pxx = ratio*p1
     for j, a_crack in enumerate(a_cracks):
-        [KI, KII], [us, up, um] = run_shallow_case_symm(H, p1, pxx, a_crack, E=E, nu=nu, beta=beta, geo_name="sym_shallow.geo", save_vtu=True, mesh=True)
+        print(f"Simulando caso {j+1} de {len(a_cracks)} --- a / H = {a_crack/H}")
+        [KI, KII], [us, up, um] = run_shallow_case_symm(H, p1, pxx, a_crack, E=E, nu=nu, beta=beta, geo_name="sym_shallow.geo",plane_stess=True, save_vtu=True, mesh=True)
         K_calcs[j] = [KI, KII]
         up_arr[j] = up
         um_arr[j] = um
@@ -34,4 +35,4 @@ for i, ratio in enumerate(ratios_casos):
 
 
     aH = a_cracks / H
-    np.savetxt(f"./sym_beta_{beta}/ratio_{ratio}.csv", np.array([aH, K_calcs[:, 0], K_calcs[:, 1], us_arr, up_arr,um_arr]).T, header="aH,KI,KII,us,up,um", delimiter=",", comments='')
+    np.savetxt(f"./lab_lemans/output.csv", np.array([aH, K_calcs[:, 0], K_calcs[:, 1], us_arr, up_arr,um_arr]).T, header="aH,KI,KII,us,up,um", delimiter=",", comments='')

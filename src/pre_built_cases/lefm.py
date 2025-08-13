@@ -93,9 +93,9 @@ def run_gmsh(mesh_name: str, Lcrack=None , H_prof = None, beta = None , mesh=Tru
     if mesh:
         reemplazar_H(f"{mesh_name}.geo", Lcrack, H_prof, beta)
         cmd_mallado = ["gmsh", "-2", f"{mesh_name}.geo", "-format", "msh2", "-o", f"{mesh_name}.msh"] 
-        subprocess.run(cmd_mallado, check=True)
+        subprocess.run(cmd_mallado, check=True, stdout=subprocess.DEVNULL)
         cmd_xml_transformer = ["dolfin-convert" ,f"{mesh_name}.msh", f"{mesh_name}.xml"]
-        subprocess.run(cmd_xml_transformer, check=True)
+        subprocess.run(cmd_xml_transformer, check=True, stdout=subprocess.DEVNULL)
     
     mesh = Mesh(f"{mesh_name}.xml")
     boundaries = MeshFunction("size_t", mesh, f"{mesh_name}_facet_region.xml")
@@ -211,6 +211,7 @@ def run_shallow_case_symm(H_prof: float,
                      geo_name="shallow.geo", 
                      save_vtu=False,
                      tol= 1e-5,
+                     plane_stess=False,
                      mesh=True):
     from dolfin import ds
     np.seterr(divide='raise')
@@ -232,13 +233,15 @@ def run_shallow_case_symm(H_prof: float,
     mu = E / (2 * (1 + nu))
 
     lmbda = E*nu / ((1 + nu)*(1 - 2*nu))
-    # lmbda = 2 * mu * lmbda / (lmbda + 2 * mu)
+    if plane_stess:
+        lmbda = 2 * mu * nu / (1 - nu)
 
     ds = Measure("ds", domain=mesh, subdomain_data=boundaries)
     u = TrialFunction(V)
     v = TestFunction(V)
 
-    a = elastic_energy_funcional(u, v, lmbda, mu)
+    espesor = 0.02
+    a = espesor * elastic_energy_funcional(u, v, lmbda, mu)
 
     n = FacetNormal(mesh)
     lateral_compression = Constant((pxx, 0.0))
@@ -248,8 +251,9 @@ def run_shallow_case_symm(H_prof: float,
     solve(a == L_form, u_sol, bcs)
 
     # INICIO DEL POSTPROCESO
-    kappa = 3 - 4 *nu # Plane - strain 
-    # kappa = (3 - nu)/(1+nu) # Plane - stress
+    kappa = 3 - 4 *nu # Plane - strain
+    if plane_stess:
+        kappa = (3 - nu)/(1+nu)
     factor = np.sqrt(2 * np.pi) * mu / (1+kappa)
     rel_KI = (p1 * np.sqrt(np.pi * Lcrack))
 
